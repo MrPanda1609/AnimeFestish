@@ -506,3 +506,36 @@ export function getProxiedKeyUrl(keyUrl) {
   if (!keyUrl) return '';
   return `${M3U8_PROXY_BASE}/key?url=${encodeURIComponent(keyUrl)}`;
 }
+
+
+/**
+ * Fetch Top 10 phim lẻ (movies) today — sorted by latest update
+ */
+export async function fetchTopMovies(limit = 10) {
+  const [ophimResult, nguoncResult] = await Promise.allSettled([
+    fetchAllOphim(`/v1/api/danh-sach/phim-le?page=1&sort_field=modified.time&limit=${limit}`),
+    fetchNguoncList(`/api/films/danh-sach/phim-le?page=1`, 'single'),
+  ]);
+
+  const allItems = [];
+  if (ophimResult.status === 'fulfilled') allItems.push(...ophimResult.value.items);
+  if (nguoncResult.status === 'fulfilled') allItems.push(...nguoncResult.value.items);
+
+  return deduplicateBySlug(allItems).slice(0, limit);
+}
+
+/**
+ * Fetch Top 10 phim bộ (series) today — sorted by latest update
+ */
+export async function fetchTopSeries(limit = 10) {
+  const [ophimResult, nguoncResult] = await Promise.allSettled([
+    fetchAllOphim(`/v1/api/danh-sach/phim-bo?page=1&sort_field=modified.time&limit=${limit}`),
+    fetchNguoncList(`/api/films/danh-sach/phim-bo?page=1`, 'series'),
+  ]);
+
+  const allItems = [];
+  if (ophimResult.status === 'fulfilled') allItems.push(...ophimResult.value.items);
+  if (nguoncResult.status === 'fulfilled') allItems.push(...nguoncResult.value.items);
+
+  return deduplicateBySlug(allItems).slice(0, limit);
+}

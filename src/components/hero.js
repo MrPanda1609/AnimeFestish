@@ -6,7 +6,8 @@ let heroInterval = null;
 let currentSlide = 0;
 
 function resolveImg(item) {
-  const file = item.poster_url || item.thumb_url;
+  // Use thumb_url first for hero — it's landscape (16:9-ish) vs poster_url (portrait 2:3)
+  const file = item.thumb_url || item.poster_url;
   if (!file) return '';
   if (file.startsWith('http')) return toWebpUrl(file);
   if (item._imgCdn) return toWebpUrl(`${item._imgCdn}${file}`);
