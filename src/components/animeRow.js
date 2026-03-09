@@ -40,6 +40,13 @@ export function renderAnimeRow(container, title, items, moreLink = null) {
     scrollContainer.scrollBy({ left: getScrollDistance(), behavior: 'smooth' });
   });
 
+  // Scroll fade indicator — hide when scrolled to end
+  scrollContainer.addEventListener('scroll', () => {
+    const row = section.querySelector('.anime-row');
+    const atEnd = scrollContainer.scrollLeft + scrollContainer.clientWidth >= scrollContainer.scrollWidth - 10;
+    row.classList.toggle('scrolled-end', atEnd);
+  }, { passive: true });
+
   container.appendChild(section);
 }
 

@@ -967,6 +967,120 @@ input {
   padding-bottom: 24px;
 }
 
+/* === Mobile Bottom Navigation === */
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--bg-navbar);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 16px;
+    color: var(--text-muted);
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    transition: color var(--duration-fast);
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--accent-secondary);
+  }
+
+  .bottom-nav-item svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  #main-content {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+  }
+
+  .footer {
+    padding-bottom: calc(var(--space-xl) + 56px + env(safe-area-inset-bottom, 0));
+  }
+
+  body.watching .bottom-nav {
+    display: none;
+  }
+
+  body.watching #main-content {
+    padding-bottom: 0;
+  }
+}
+
+/* === Mobile Search & Slide-in Menu === */
+.mobile-search-bar {
+  display: none;
+}
+
+.mobile-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: var(--navbar-h);
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-backdrop.active {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* === Mobile Scroll Fade Indicator === */
+@media (max-width: 768px) {
+  .anime-row {
+    position: relative;
+  }
+
+  .anime-row::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(to right, transparent, var(--bg-primary));
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity var(--duration-normal);
+  }
+
+  .anime-row.scrolled-end::after {
+    opacity: 0;
+  }
+}
 
 /* === Detail Page === */
 .detail-backdrop {
@@ -1885,15 +1999,49 @@ input {
     flex-direction: column;
     position: fixed;
     top: var(--navbar-h);
-    left: 0;
     right: 0;
     bottom: 0;
-    background: var(--bg-primary);
-    padding: var(--space-xl) var(--space-lg);
+    width: min(300px, 80vw);
+    background: var(--bg-glass);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    padding: var(--space-lg);
     gap: var(--space-sm);
     z-index: 999;
-    animation: fadeInUp 0.3s var(--ease-out);
+    animation: slideInRight 0.25s var(--ease-out);
     overflow-y: auto;
+    border-left: 1px solid var(--border-color);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .navbar-links.mobile-open .mobile-search-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: var(--space-sm);
+  }
+
+  .mobile-search-input {
+    flex: 1;
+    background: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: inherit;
+    border: none;
+    outline: none;
+  }
+
+  .mobile-search-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .mobile-search-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
   }
 
   .navbar-links.mobile-open a {
@@ -2049,13 +2197,23 @@ input {
   }
 
   .episodes-grid {
-    gap: 6px;
+    gap: 8px;
   }
 
   .episode-btn {
-    min-width: 46px;
+    min-width: 48px;
     padding: 8px 12px;
     font-size: 0.8rem;
+    min-height: 44px;
+  }
+
+  .player-wrapper {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    margin-left: calc(-1 * var(--space-md));
+    margin-right: calc(-1 * var(--space-md));
+    width: calc(100% + var(--space-md) * 2);
   }
 
   .watch-container {

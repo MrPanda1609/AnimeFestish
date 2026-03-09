@@ -79,6 +79,9 @@ function initIframePlayer(embedUrl) {
 
 export async function renderWatchPage({ slug, ep }) {
   const main = document.getElementById('main-content');
+  // Hide bottom nav while watching
+  document.body.classList.add('watching');
+
 
   // Loading
   main.innerHTML = `
@@ -295,5 +298,8 @@ export async function renderWatchPage({ slug, ep }) {
     `;
   }
 
-  return () => destroyHls();
+  return () => {
+    destroyHls();
+    document.body.classList.remove('watching');
+  };
 }

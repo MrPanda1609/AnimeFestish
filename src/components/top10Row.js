@@ -69,5 +69,12 @@ export function renderTop10Row(container, title, items, moreLink = null) {
     scrollContainer.scrollBy({ left: getScrollDistance(), behavior: 'smooth' });
   });
 
+  // Scroll fade indicator
+  scrollContainer.addEventListener('scroll', () => {
+    const row = section.querySelector('.anime-row');
+    const atEnd = scrollContainer.scrollLeft + scrollContainer.clientWidth >= scrollContainer.scrollWidth - 10;
+    row.classList.toggle('scrolled-end', atEnd);
+  }, { passive: true });
+
   container.appendChild(section);
 }
