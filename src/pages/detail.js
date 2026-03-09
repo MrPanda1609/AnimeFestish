@@ -1,7 +1,12 @@
 // === Anime Detail Page ===
-import { fetchAnimeDetail, getImageUrl } from '../js/api.js';
+import { fetchAnimeDetail, getImageUrl, fetchKitsuPoster } from '../js/api.js';
 import { navigate } from '../js/router.js';
 
+function decodeHtml(html) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html || '';
+  return txt.value;
+}
 export async function renderDetailPage({ slug }) {
   const main = document.getElementById('main-content');
 
@@ -64,7 +69,7 @@ export async function renderDetailPage({ slug }) {
           </div>
           <div class="detail-info">
             <h1 class="detail-title">${movie.name}</h1>
-            <p class="detail-origin">${movie.origin_name || ''}</p>
+            <p class="detail-origin">${decodeHtml(movie.origin_name) || ''}</p>
             <div class="detail-meta">
               ${movie.quality ? `<span class="detail-meta-tag">📺 ${movie.quality}</span>` : ''}
               ${movie.lang ? `<span class="detail-meta-tag">🌐 ${movie.lang}</span>` : ''}
@@ -80,7 +85,7 @@ export async function renderDetailPage({ slug }) {
             <p class="detail-desc">${movie.content || movie.description || 'Chưa có mô tả.'}</p>
             ${episodes.length > 0 && episodes[0].server_data && episodes[0].server_data.length > 0 ? `
               <div class="hero-actions">
-                <button class="btn btn-primary" id="watch-first-btn">▶ Xem tập đầu</button>
+                <button class="btn btn-primary" id="watch-first-btn">▶ Bắt đầu xem</button>
               </div>
             ` : ''}
           </div>
@@ -127,6 +132,22 @@ export async function renderDetailPage({ slug }) {
       watchFirstBtn.addEventListener('click', () => {
         const firstEp = episodes[0].server_data[0];
         navigate(`/watch/${slug}/${firstEp.slug || firstEp.name}`);
+      });
+    }
+
+    // Progressive enhancement: try Kitsu for better poster images
+    const originName = movie.origin_name;
+    if (originName) {
+      fetchKitsuPoster(originName).then(kitsu => {
+        if (!kitsu) return;
+        if (kitsu.poster) {
+          const posterEl = main.querySelector('.detail-poster img');
+          if (posterEl) posterEl.src = kitsu.poster;
+        }
+        if (kitsu.cover || kitsu.poster) {
+          const backdropEl = main.querySelector('.detail-backdrop img');
+          if (backdropEl) backdropEl.src = kitsu.cover || kitsu.poster;
+        }
       });
     }
 

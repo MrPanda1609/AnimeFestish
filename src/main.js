@@ -25,6 +25,29 @@ addRoute('/category/:category', (params) => renderAnimePage(params));
 // Start router
 initRouter();
 
+// Scroll-reveal: animate elements as they enter viewport
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('revealed');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+// Observe sections as they are added to the DOM
+const mainContent = document.getElementById('main-content');
+const contentObserver = new MutationObserver(() => {
+  mainContent.querySelectorAll('.section, .category-header, .episodes-section, .detail-content').forEach(el => {
+    if (!el.dataset.observed) {
+      el.classList.add('reveal-on-scroll');
+      el.dataset.observed = 'true';
+      revealObserver.observe(el);
+    }
+  });
+});
+contentObserver.observe(mainContent, { childList: true, subtree: true });
+
 // Intro animation — show for at least 2s then fade out
 const INTRO_MIN_MS = 2000;
 const introStart = performance.now();

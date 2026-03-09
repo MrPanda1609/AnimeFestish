@@ -14,16 +14,17 @@ export function renderNavbar() {
       <div class="navbar-inner">
         <div class="navbar-logo" id="nav-logo">
           <img src="/Gemini_Generated_Image_l00nrdl00nrdl00n-removebg-preview.png" alt="Logo" class="navbar-logo-img" />
-          <span>AnimeFetish</span>
+          <span class="navbar-logo-text">AnimeFetish</span>
         </div>
         <div class="navbar-links" id="nav-links">
           <a href="#/" class="nav-link" data-route="/">Trang chủ</a>
           <a href="#/anime" class="nav-link" data-route="/anime">Anime</a>
           <a href="#/category/hanh-dong" class="nav-link" data-route="/category/hanh-dong">Hành Động</a>
           <a href="#/category/tinh-cam" class="nav-link" data-route="/category/tinh-cam">Tình Cảm</a>
+          <a href="#/category/vien-tuong" class="nav-link" data-route="/category/vien-tuong">Viễn Tưởng</a>
         </div>
         <div class="navbar-search" id="nav-search">
-          <button class="navbar-search-btn" id="search-toggle">🔍</button>
+          <button class="navbar-search-btn" id="search-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
           <input type="text" placeholder="Tìm anime..." id="search-input" />
         </div>
         <div class="profile-selector" id="profile-selector">

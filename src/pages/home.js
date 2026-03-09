@@ -1,6 +1,6 @@
 // === Home Page — Japanese Anime Focused ===
 import { fetchAnimeList, fetchJapaneseAnime, fetchByCategory } from '../js/api.js';
-import { filterAnimeOnly } from '../js/animeFilter.js';
+import { filterAnimeOnly, filterJapaneseAnime } from '../js/animeFilter.js';
 import { getContinueWatching } from '../js/watchHistory.js';
 import { renderHero, stopHero } from '../components/hero.js';
 import { renderAnimeRow, renderSkeletonRow } from '../components/animeRow.js';
@@ -23,32 +23,25 @@ export async function renderHomePage() {
   main.appendChild(content);
 
   // Show skeletons
-  renderSkeletonRow(content, 'Anime Nhật Bản Mới Nhất');
-  renderSkeletonRow(content, 'Hành Động Nhật Bản');
+  renderSkeletonRow(content, 'Anime Mới Nhất');
+  renderSkeletonRow(content, 'Hành Động');
 
   try {
-    // Fetch Japanese anime first (main focus) + general list + extra pages for variety
-    const [japanData, japanPage2, animeData, chinaData] = await Promise.all([
+    // Fetch Japanese anime (main focus)
+    const [japanData, japanPage2, japanPage3] = await Promise.all([
       fetchJapaneseAnime(1),
       fetchJapaneseAnime(2),
-      fetchAnimeList(1),
-      fetchAnimeList(2),
+      fetchJapaneseAnime(3),
     ]);
 
-    // Filter EVERYTHING through anime filter first to exclude dramas/live-action
-    const japanRaw = filterAnimeOnly([...(japanData.items || []), ...(japanPage2.items || [])]);
-    const allAnime = filterAnimeOnly([...(animeData.items || []), ...(chinaData.items || [])]);
+    const allJapanAnime = filterAnimeOnly([
+      ...(japanData.items || []),
+      ...(japanPage2.items || []),
+      ...(japanPage3.items || []),
+    ]).filter(i => i.country?.some(c => c.slug === 'nhat-ban'));
 
-    // Japanese anime only (verified anime + from Japan)
-    const japanAnime = japanRaw.filter(i =>
-      i.country?.some(c => c.slug === 'nhat-ban')
-    );
-
-    // Hero: only show confirmed anime, Japanese priority
-    const heroPool = japanAnime.length >= 5
-      ? japanAnime
-      : [...japanAnime, ...allAnime.filter(i => !japanAnime.some(j => j.slug === i.slug))];
-    renderHero(heroContainer, heroPool.slice(0, 5));
+    // Hero: Japanese anime only
+    renderHero(heroContainer, allJapanAnime.slice(0, 5));
 
     // Continue Watching
     const continueItems = getContinueWatching(10);
@@ -59,37 +52,31 @@ export async function renderHomePage() {
     // Clear skeletons and render actual rows
     content.innerHTML = '';
 
-    // 1. Japanese anime — Main section (biggest)
-    const japanOnly = japanAnime.slice(0, 24);
-    if (japanOnly.length > 0) {
-      renderAnimeRow(content, 'Anime Nhật Bản Mới Nhất 🇯🇵', japanOnly, '#/category/nhat-ban');
+    // 1. Newest Japanese Anime
+    const newest = allJapanAnime.slice(0, 24);
+    if (newest.length > 0) {
+      renderAnimeRow(content, 'Mới Cập Nhật 🔥', newest, '#/anime');
     }
 
-    // 2. All new anime (mixed)
-    const newAnime = allAnime.filter(i => !japanOnly.some(j => j.slug === i.slug)).slice(0, 20);
-    if (newAnime.length > 0) {
-      renderAnimeRow(content, 'Mới Cập Nhật 🔥', newAnime, '#/anime');
-    }
-
-    // 3. Fetch Japanese-focused genres
+    // 2. Fetch genre-specific Japanese anime
     try {
-      const [actionData, romanceData, fantasyData] = await Promise.all([
+      const [actionData, romanceData, fantasyData, mysteryData] = await Promise.all([
         fetchByCategory('hanh-dong', 1),
         fetchByCategory('tinh-cam', 1),
         fetchByCategory('vien-tuong', 1),
+        fetchByCategory('bi-an', 1),
       ]);
 
-      // Filter to anime and prioritize Japanese
       const filterJP = (items) => {
         const anime = filterAnimeOnly(items || []);
         const jp = anime.filter(i => i.country?.some(c => c.slug === 'nhat-ban'));
-        const others = anime.filter(i => !jp.some(j => j.slug === i.slug));
-        return [...jp, ...others].slice(0, 20);
+        return jp.slice(0, 20);
       };
 
       const actionItems = filterJP(actionData.items);
       const romanceItems = filterJP(romanceData.items);
       const fantasyItems = filterJP(fantasyData.items);
+      const mysteryItems = filterJP(mysteryData.items);
 
       if (actionItems.length > 0) {
         renderAnimeRow(content, 'Hành Động ⚔️', actionItems, '#/category/hanh-dong');
@@ -100,17 +87,11 @@ export async function renderHomePage() {
       if (fantasyItems.length > 0) {
         renderAnimeRow(content, 'Viễn Tưởng 🌌', fantasyItems, '#/category/vien-tuong');
       }
+      if (mysteryItems.length > 0) {
+        renderAnimeRow(content, 'Bí Ẩn 🔮', mysteryItems, '#/category/bi-an');
+      }
     } catch (e) {
       console.warn('Failed to load genre rows:', e);
-    }
-
-    // 4. Chinese anime as secondary section
-    const chinaItems = allAnime
-      .filter(i => i.country?.some(c => c.slug === 'trung-quoc'))
-      .filter(i => !japanOnly.some(j => j.slug === i.slug))
-      .slice(0, 14);
-    if (chinaItems.length > 0) {
-      renderAnimeRow(content, 'Anime Trung Quốc 🇨🇳', chinaItems, '#/category/trung-quoc');
     }
 
   } catch (err) {

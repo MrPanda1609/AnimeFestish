@@ -12,8 +12,8 @@ export async function renderSearchPage({ keyword }) {
   main.innerHTML = `
     <div class="search-page">
       <div class="search-bar-lg">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search-input-lg" placeholder="Tìm anime bạn muốn xem..." value="${decodedKeyword}" autofocus />
+        <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
+        <input type="text" id="search-input-lg" placeholder="Tìm anime Nhật Bản bạn muốn xem..." value="${decodedKeyword}" autofocus />
       </div>
       <div id="search-results-info" class="search-results-info"></div>
       <div id="search-results" class="anime-grid"></div>
@@ -32,7 +32,7 @@ export async function renderSearchPage({ keyword }) {
       resultsContainer.innerHTML = `
         <div class="empty-state" style="grid-column:1/-1">
           <div class="empty-state-icon">🔍</div>
-          <div class="empty-state-text">Nhập từ khóa để tìm anime</div>
+          <div class="empty-state-text">Nhập tên anime để tìm kiếm...</div>
         </div>
       `;
       resultsInfo.textContent = '';
@@ -116,7 +116,7 @@ export async function renderSearchPage({ keyword }) {
     resultsContainer.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1">
         <div class="empty-state-icon">🔍</div>
-        <div class="empty-state-text">Nhập từ khóa để tìm anime</div>
+        <div class="empty-state-text">Nhập tên anime để tìm kiếm...</div>
       </div>
     `;
   }

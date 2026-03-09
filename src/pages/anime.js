@@ -4,22 +4,20 @@ import { filterAnimeOnly } from '../js/animeFilter.js';
 import { createAnimeCard, createSkeletonCard } from '../components/animeCard.js';
 
 const CATEGORY_TITLES = {
-  'anime': 'Phim Hoạt Hình',
-  'hanh-dong': 'Thể Loại: Hành Động',
-  'tinh-cam': 'Thể Loại: Tình Cảm',
-  'vien-tuong': 'Thể Loại: Viễn Tưởng',
-  'phieu-luu': 'Thể Loại: Phiêu Lưu',
-  'hai-huoc': 'Thể Loại: Hài Hước',
-  'bi-an': 'Thể Loại: Bí Ẩn',
-  'khoa-hoc': 'Thể Loại: Khoa Học',
-  'chinh-kich': 'Thể Loại: Chính Kịch',
+  'anime': 'Tất Cả Anime',
+  'hanh-dong': 'Hành Động',
+  'tinh-cam': 'Tình Cảm',
+  'vien-tuong': 'Viễn Tưởng',
+  'phieu-luu': 'Phiêu Lưu',
+  'hai-huoc': 'Hài Hước',
+  'bi-an': 'Bí Ẩn',
+  'khoa-hoc': 'Khoa Học',
+  'chinh-kich': 'Chính Kịch',
+  'tam-ly': 'Tâm Lý',
   'nhat-ban': 'Anime Nhật Bản',
-  'trung-quoc': 'Anime Trung Quốc',
-  'au-my': 'Anime Âu Mỹ',
-  'han-quoc': 'Anime Hàn Quốc',
 };
 
-const COUNTRY_SLUGS = ['nhat-ban', 'trung-quoc', 'au-my', 'han-quoc'];
+const COUNTRY_SLUGS = ['nhat-ban'];
 
 export async function renderAnimePage({ category }) {
   const main = document.getElementById('main-content');
@@ -31,13 +29,14 @@ export async function renderAnimePage({ category }) {
     <div class="category-header">
       <h1 class="category-title">${title}</h1>
       <div class="category-filters">
-        <a href="#/anime" class="filter-chip ${slug === 'anime' ? 'active' : ''}">Tất cả</a>
-        <a href="#/category/nhat-ban" class="filter-chip ${slug === 'nhat-ban' ? 'active' : ''}">🇯🇵 Nhật Bản</a>
-        <a href="#/category/trung-quoc" class="filter-chip ${slug === 'trung-quoc' ? 'active' : ''}">🇨🇳 Trung Quốc</a>
+        <a href="#/anime" class="filter-chip ${slug === 'anime' ? 'active' : ''}">📺 Tất cả</a>
         <a href="#/category/hanh-dong" class="filter-chip ${slug === 'hanh-dong' ? 'active' : ''}">⚔️ Hành Động</a>
-        <a href="#/category/vien-tuong" class="filter-chip ${slug === 'vien-tuong' ? 'active' : ''}">🌌 Viễn Tưởng</a>
         <a href="#/category/tinh-cam" class="filter-chip ${slug === 'tinh-cam' ? 'active' : ''}">💕 Tình Cảm</a>
+        <a href="#/category/vien-tuong" class="filter-chip ${slug === 'vien-tuong' ? 'active' : ''}">🌌 Viễn Tưởng</a>
+        <a href="#/category/phieu-luu" class="filter-chip ${slug === 'phieu-luu' ? 'active' : ''}">🗺️ Phiêu Lưu</a>
         <a href="#/category/hai-huoc" class="filter-chip ${slug === 'hai-huoc' ? 'active' : ''}">😂 Hài Hước</a>
+        <a href="#/category/bi-an" class="filter-chip ${slug === 'bi-an' ? 'active' : ''}">🔮 Bí Ẩn</a>
+        <a href="#/category/tam-ly" class="filter-chip ${slug === 'tam-ly' ? 'active' : ''}">🧠 Tâm Lý</a>
       </div>
     </div>
     <div class="section" style="padding-top:0">

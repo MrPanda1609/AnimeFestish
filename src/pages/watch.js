@@ -3,6 +3,12 @@ import { fetchAnimeDetail, getImageUrl } from '../js/api.js';
 import { navigate } from '../js/router.js';
 import { saveWatchProgress, getWatchProgress } from '../js/watchHistory.js';
 
+function decodeHtml(html) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html || '';
+  return txt.value;
+}
+
 export async function renderWatchPage({ slug, ep }) {
   const main = document.getElementById('main-content');
 
@@ -115,13 +121,13 @@ export async function renderWatchPage({ slug, ep }) {
           <div class="watch-nav">
             ${prevEp ? `
               <button class="btn btn-outline" id="prev-ep-btn" data-ep="${prevEp.slug || prevEp.name}">
-                ← Tập trước
+                ⬅ Tập trước
               </button>
             ` : ''}
             <a href="#/anime/${slug}" class="btn btn-outline">📋 Danh sách tập</a>
             ${nextEp ? `
               <button class="btn btn-primary" id="next-ep-btn" data-ep="${nextEp.slug || nextEp.name}">
-                Tập tiếp →
+                Tập tiếp ➡
               </button>
             ` : ''}
           </div>

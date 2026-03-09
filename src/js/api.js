@@ -1,18 +1,18 @@
 // === Multi-Source Anime API Layer ===
-// Aggregates anime from OPhim, PhimAPI, and NguonC
-// OPhim + PhimAPI use compatible formats; NguonC uses a different format and is adapted
+// Sources: KKPhim (phimapi.com) + OPhim (ophim1.com) + NguonC (phim.nguonc.com)
+// KKPhim + OPhim use compatible formats; NguonC uses a different format and is adapted
 
 const SOURCES_OPHIM = [
+  {
+    name: 'PhimAPI',
+    base: '/api2', // proxied to phimapi.com (KKPhim)
+    imgCdn: 'https://phimimg.com/',
+    type: 'ophim',
+  },
   {
     name: 'OPhim',
     base: '/api',  // proxied to ophim1.com
     imgCdn: 'https://img.ophim.live/uploads/movies/',
-    type: 'ophim',
-  },
-  {
-    name: 'PhimAPI',
-    base: '/api2', // proxied to phimapi.com
-    imgCdn: 'https://phimimg.com/',
     type: 'ophim',
   },
 ];
@@ -161,7 +161,7 @@ async function fetchNguoncList(path, defaultType = '') {
  */
 export async function fetchAnimeList(page = 1) {
   const [ophimResult, nguoncResult] = await Promise.allSettled([
-    fetchAllOphim(`/v1/api/danh-sach/hoat-hinh?page=${page}`),
+    fetchAllOphim(`/v1/api/danh-sach/hoat-hinh?page=${page}&country=nhat-ban`),
     fetchNguoncList(`/api/films/danh-sach/hoat-hinh?page=${page}`, 'hoathinh'),
   ]);
 
@@ -200,7 +200,7 @@ export async function fetchJapaneseAnime(page = 1) {
   // For OPhim, use country endpoint (OPhim items already have type=hoathinh for anime)
   // For NguonC, use hoat-hinh endpoint (which is anime-only) — we filter by Japan later
   const [ophimResult, nguoncResult] = await Promise.allSettled([
-    fetchAllOphim(`/v1/api/quoc-gia/nhat-ban?page=${page}`),
+    fetchAllOphim(`/v1/api/danh-sach/hoat-hinh?page=${page}&country=nhat-ban`),
     fetchNguoncList(`/api/films/danh-sach/hoat-hinh?page=${page}`, 'hoathinh'),
   ]);
 
@@ -320,6 +320,29 @@ export async function fetchAnimeDetail(slug) {
 }
 
 /**
+ * Fetch high-quality poster from Kitsu (free, no API key)
+ * Uses origin_name to search; returns poster URLs or null
+ */
+export async function fetchKitsuPoster(originName) {
+  if (!originName) return null;
+  try {
+    const resp = await fetch(`https://kitsu.app/api/edge/anime?filter[text]=${encodeURIComponent(originName)}&page[limit]=1`);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const anime = json.data?.[0];
+    if (!anime) return null;
+    const poster = anime.attributes?.posterImage;
+    const cover = anime.attributes?.coverImage;
+    return {
+      poster: poster?.large || poster?.medium || poster?.original || null,
+      cover: cover?.large || cover?.original || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch by country from all sources
  */
 export async function fetchByCountry(country, page = 1) {
@@ -430,5 +453,10 @@ export async function fetchNewUpdates(page = 1) {
     allItems.push(...nguoncResult.value.items);
   }
 
-  return { items: deduplicateBySlug(allItems) };
+  // Filter to Japanese anime only
+  const japanItems = allItems.filter(item => 
+    item.type === 'hoathinh' && 
+    item.country?.some(c => c.slug === 'nhat-ban')
+  );
+  return { items: deduplicateBySlug(japanItems.length > 0 ? japanItems : allItems) };
 }

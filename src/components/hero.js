@@ -28,11 +28,12 @@ export function renderHero(container, items) {
             <div class="hero-gradient"></div>
             <div class="hero-content">
               <div class="hero-badge">
-                <span>🔥</span>
+                <span>★</span>
                 <span>${item.lang || 'Vietsub'}</span>
               </div>
-              <h1 class="hero-title">${item.name}</h1>
+              <h1 class="hero-title">${item.name.split('(')[0].trim()}</h1>
               <div class="hero-meta">
+                ${item.tmdb?.vote_average ? `<span class="hero-rating">★ ${item.tmdb.vote_average.toFixed(1)}</span>` : ''}
                 ${item.quality ? `<span class="quality">${item.quality}</span>` : ''}
                 ${item.year ? `<span class="year">${item.year}</span>` : ''}
                 ${item.episode_current ? `<span class="hero-meta-item">${item.episode_current}</span>` : ''}

@@ -26,7 +26,7 @@ export function createAnimeCard(item) {
       </div>
       ${item.episode_current ? `<span class="badge-ep">${item.episode_current}</span>` : ''}
       <div class="anime-card-overlay">
-        <div class="anime-card-play">▶</div>
+        <div class="anime-card-play"><svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>
       </div>
     </div>
     <div class="anime-card-info">
