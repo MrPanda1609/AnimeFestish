@@ -41,7 +41,7 @@ export function renderContinueWatching(container, items) {
         <div class="anime-card-overlay">
           <div class="anime-card-play">▶</div>
         </div>
-        <span class="badge-ep">Tập ${item.episodeName}</span>
+        <span class="badge-ep">${item.episodeName}</span>
         <div class="continue-progress">
           <div class="continue-progress-bar" style="width:${progressPct}%"></div>
         </div>
@@ -49,7 +49,7 @@ export function renderContinueWatching(container, items) {
       </div>
       <div class="anime-card-info">
         <div class="anime-card-title" title="${item.animeName}">${item.animeName}</div>
-        <div class="anime-card-sub">${timeInfo || `Tập ${item.episodeName}`}</div>
+        <div class="anime-card-sub">${timeInfo || item.episodeName}</div>
       </div>
     `;
 

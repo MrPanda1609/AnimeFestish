@@ -52,10 +52,6 @@ export function renderNavbar() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <span>Tìm kiếm</span>
       </button>
-      <button class="bottom-nav-item" data-route="/profile" id="bnav-profile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span>Hồ sơ</span>
-      </button>
     </div>
     <div class="mobile-backdrop" id="mobile-backdrop"></div>
   `;
@@ -193,15 +189,7 @@ export function renderNavbar() {
   document.querySelectorAll('.bottom-nav-item').forEach(item => {
     item.addEventListener('click', () => {
       const route = item.dataset.route;
-      if (route === '/profile') {
-        const profileDropdown = document.getElementById('profile-dropdown');
-        profileDropdown.classList.toggle('open');
-        if (profileDropdown.classList.contains('open')) {
-          renderProfileDropdown();
-        }
-      } else {
-        navigate(route === '/search' ? '/search/' : route);
-      }
+      navigate(route === '/search' ? '/search/' : route);
     });
   });
 
