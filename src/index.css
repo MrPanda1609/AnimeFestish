@@ -880,7 +880,8 @@ input {
 }
 
 .anime-grid .anime-card {
-  width: 100%;
+  width: auto;
+  min-width: 0;
 }
 
 /* === Top 10 Ranking Row === */
@@ -2388,7 +2389,8 @@ input {
   }
 
   .anime-grid .anime-card {
-    width: 100%;
+    width: auto;
+    min-width: 0;
   }
 
   .detail-backdrop {
