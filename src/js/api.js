@@ -110,8 +110,8 @@ function adaptNguoncItem(item, defaultType = '') {
     lang: item.language || 'Vietsub',
     episode_current: item.current_episode || '',
     time: item.time || '',
-    category: item.category || [],
-    country: item.country || [],
+    category: Array.isArray(item.category) ? item.category : [],
+    country: Array.isArray(item.country) ? item.country : [],
     _source: 'NguonC',
     _imgCdn: '',
   };
@@ -315,6 +315,21 @@ export async function fetchAnimeDetail(slug) {
     const data = await fetchFromNguonc(`/api/film/${slug}`);
     if (data && data.status === 'success' && data.movie) {
       const movie = data.movie;
+      // NguonC category is {1:{group,list},2:{group,list},...} — extract to [{name,slug}]
+      const cats = [];
+      const countries = [];
+      if (movie.category && typeof movie.category === 'object' && !Array.isArray(movie.category)) {
+        Object.values(movie.category).forEach(cat => {
+          const groupName = cat.group?.name || '';
+          (cat.list || []).forEach(item => {
+            if (groupName === 'Thể loại' || groupName === 'Định dạng') {
+              cats.push({ name: item.name, slug: item.id || '' });
+            } else if (groupName === 'Quốc gia') {
+              countries.push({ name: item.name, slug: item.id || '' });
+            }
+          });
+        });
+      }
       return {
         data: {
           item: {
@@ -331,8 +346,8 @@ export async function fetchAnimeDetail(slug) {
             episode_current: movie.current_episode || '',
             episode_total: movie.total_episodes ? String(movie.total_episodes) : '',
             time: movie.time || '',
-            category: movie.category || [],
-            country: movie.country || [],
+            category: Array.isArray(movie.category) ? movie.category : cats,
+            country: Array.isArray(movie.country) ? movie.country : countries,
             _source: 'NguonC',
             _imgCdn: '',
           },
