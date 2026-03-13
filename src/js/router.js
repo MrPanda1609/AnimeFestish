@@ -3,6 +3,7 @@ import { resetSEO } from './seo.js';
 
 const routes = {};
 let currentCleanup = null;
+let navId = 0;
 
 export function addRoute(path, handler) {
   routes[path] = handler;
@@ -47,6 +48,7 @@ function matchRoute(path) {
 }
 
 export async function handleRouteChange() {
+  const thisNav = ++navId;
   const path = getCurrentRoute();
   const matched = matchRoute(path);
 
@@ -59,11 +61,11 @@ export async function handleRouteChange() {
   const mainContent = document.getElementById('main-content');
 
   if (matched) {
-    // Scroll to top
     window.scrollTo(0, 0);
     mainContent.classList.add('fade-in');
-    currentCleanup = await matched.handler(matched.params);
-    // Remove animation class after it plays
+    const cleanup = await matched.handler(matched.params);
+    if (thisNav !== navId) return;
+    currentCleanup = cleanup;
     setTimeout(() => mainContent.classList.remove('fade-in'), 500);
   } else {
     resetSEO();

@@ -166,32 +166,31 @@ export async function renderWatchPage({ slug, ep }) {
       return;
     }
 
-    // Find the episode
+    // Find the episode — flexible matching for NguonC ("1", "tap-1") vs KKPhim ("Tập 01", "tap-01")
     let currentEp = null;
     let currentServerIdx = 0;
     let allEpsFlat = [];
 
+    const epNum = ep.replace(/\D/g, '');
+
+    function epMatches(episode, target) {
+      if (episode.slug === target || episode.name === target) return true;
+      const num = target.replace(/\D/g, '');
+      if (!num) return false;
+      const eSlugNum = (episode.slug || '').replace(/\D/g, '');
+      const eNameNum = (episode.name || '').replace(/\D/g, '');
+      return eSlugNum === num || eNameNum === num;
+    }
+
     episodes.forEach((server, sIdx) => {
       (server.server_data || []).forEach((episode, eIdx) => {
         allEpsFlat.push({ ...episode, serverIdx: sIdx, epIdx: eIdx, serverName: server.server_name });
-        if ((episode.slug === ep || episode.name === ep) && !currentEp) {
+        if (epMatches(episode, ep) && !currentEp) {
           currentEp = episode;
           currentServerIdx = sIdx;
         }
       });
     });
-
-    if (!currentEp) {
-      for (const server of episodes) {
-        for (const episode of (server.server_data || [])) {
-          if (episode.name === ep || episode.slug === ep) {
-            currentEp = episode;
-            break;
-          }
-        }
-        if (currentEp) break;
-      }
-    }
 
     if (!currentEp) {
       main.innerHTML = `
@@ -219,7 +218,7 @@ export async function renderWatchPage({ slug, ep }) {
     const embedUrl = currentEp.link_embed || '';
 
     // Find prev/next episodes
-    const currentFlatIdx = allEpsFlat.findIndex(e => (e.slug === ep || e.name === ep));
+    const currentFlatIdx = allEpsFlat.findIndex(e => epMatches(e, ep));
     const prevEp = currentFlatIdx > 0 ? allEpsFlat[currentFlatIdx - 1] : null;
     const nextEp = currentFlatIdx < allEpsFlat.length - 1 ? allEpsFlat[currentFlatIdx + 1] : null;
 
