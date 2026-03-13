@@ -104,18 +104,24 @@ export async function renderDetailPage({ slug }) {
       ${episodes.length > 0 ? `
         <div class="episodes-section">
           <h2 class="episodes-title">Danh sách tập</h2>
-          ${episodes.map(server => `
+          ${episodes.map((server, sIdx) => {
+            const eps = server.server_data || [];
+            const LIMIT = 50;
+            const needsExpand = eps.length > LIMIT;
+            return `
             <div class="episodes-server">
               <div class="episodes-server-name">${server.server_name || 'Server'}</div>
-              <div class="episodes-grid">
-                ${(server.server_data || []).map(ep => `
+              <div class="episodes-grid" id="ep-grid-${sIdx}">
+                ${eps.slice(0, LIMIT).map(ep => `
                   <button class="episode-btn" data-slug="${slug}" data-ep="${ep.slug || ep.name}" data-server="${server.server_name || ''}">
                     ${ep.name}
                   </button>
                 `).join('')}
               </div>
+              ${needsExpand ? `<button class="btn btn-outline ep-expand-btn" data-server-idx="${sIdx}" style="margin-top:8px;width:100%">Xem thêm (${eps.length - LIMIT} tập)</button>` : ''}
             </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       ` : `
         <div class="episodes-section">
@@ -135,6 +141,26 @@ export async function renderDetailPage({ slug }) {
       btn.addEventListener('click', () => {
         const epSlug = btn.dataset.ep;
         navigate(`/watch/${slug}/${epSlug}`);
+      });
+    });
+
+    // Expand episode buttons
+    main.querySelectorAll('.ep-expand-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sIdx = parseInt(btn.dataset.serverIdx);
+        const grid = main.querySelector(`#ep-grid-${sIdx}`);
+        const eps = episodes[sIdx]?.server_data || [];
+        const remaining = eps.slice(50);
+        remaining.forEach(ep => {
+          const b = document.createElement('button');
+          b.className = 'episode-btn';
+          b.dataset.slug = slug;
+          b.dataset.ep = ep.slug || ep.name;
+          b.textContent = ep.name;
+          b.addEventListener('click', () => navigate(`/watch/${slug}/${b.dataset.ep}`));
+          grid.appendChild(b);
+        });
+        btn.remove();
       });
     });
 
