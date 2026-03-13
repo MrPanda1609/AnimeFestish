@@ -29,6 +29,50 @@ function destroyHls() {
   }
 }
 
+function buildQualityMenu(hls) {
+  const menu = document.getElementById('quality-menu');
+  const btn = document.getElementById('quality-btn');
+  if (!menu || !btn) return;
+
+  const levels = hls.levels;
+  if (!levels || levels.length <= 1) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  const items = levels.map((level, idx) => {
+    const h = level.height;
+    const label = h >= 1080 ? `${h}p (FHD)` : h >= 720 ? `${h}p (HD)` : `${h}p`;
+    return { idx, label, height: h };
+  }).sort((a, b) => b.height - a.height);
+
+  const currentIdx = hls.currentLevel;
+
+  menu.innerHTML = `
+    <div class="quality-item ${currentIdx === -1 ? 'active' : ''}" data-level="-1">Tự động</div>
+    ${items.map(item => `
+      <div class="quality-item ${item.idx === currentIdx ? 'active' : ''}" data-level="${item.idx}">${item.label}</div>
+    `).join('')}
+  `;
+
+  menu.querySelectorAll('.quality-item').forEach(el => {
+    el.addEventListener('click', () => {
+      hls.currentLevel = parseInt(el.dataset.level);
+      menu.classList.remove('open');
+      menu.querySelectorAll('.quality-item').forEach(i => i.classList.remove('active'));
+      el.classList.add('active');
+      btn.textContent = el.dataset.level === '-1' ? '⚙' : el.textContent.trim();
+    });
+  });
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.toggle('open');
+  });
+
+  document.addEventListener('click', () => menu.classList.remove('open'));
+}
+
 async function initHlsPlayer(m3u8Url, embedFallbackUrl) {
   const wrapper = document.getElementById('player-wrapper');
   if (!wrapper) return;
@@ -36,7 +80,11 @@ async function initHlsPlayer(m3u8Url, embedFallbackUrl) {
   destroyHls();
 
   const cleanUrl = getCleanM3u8Url(m3u8Url);
-  wrapper.innerHTML = `<video id="hls-player" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>`;
+  wrapper.innerHTML = `<video id="hls-player" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>
+    <div class="quality-control">
+      <button class="quality-btn" id="quality-btn" title="Chất lượng">⚙</button>
+      <div class="quality-menu" id="quality-menu"></div>
+    </div>`;
   const video = document.getElementById('hls-player');
 
   try {
@@ -49,6 +97,7 @@ async function initHlsPlayer(m3u8Url, embedFallbackUrl) {
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         video.play().catch(() => {});
+        buildQualityMenu(hls);
       });
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
