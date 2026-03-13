@@ -1,5 +1,5 @@
 // === Firestore Comments Component ===
-import { getDb, terminateDb } from '../js/firebase.js';
+import { getDb } from '../js/firebase.js';
 import { getUser, onUserChange } from '../js/auth.js';
 import { renderLoginPopup } from './loginPopup.js';
 import {
@@ -168,8 +168,7 @@ export function renderComments(container, slug) {
     }, (err) => {
       console.error('Comments listener error:', err);
       if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-      terminateDb();
-      listEl.innerHTML = `<div class="comment-empty"><p>Lỗi tải bình luận</p></div>`;
+      listEl.innerHTML = `<div class="comment-empty"><p>Lỗi tải bình luận. Vui lòng tải lại trang.</p></div>`;
     });
   } catch (err) {
     console.error('Firestore init error:', err);
