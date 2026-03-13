@@ -2,8 +2,7 @@
 import { auth } from './firebase.js';
 import {
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -34,7 +33,12 @@ function notifyListeners() {
 }
 
 export async function loginWithGoogle() {
-  await signInWithRedirect(auth, googleProvider);
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (err) {
+    console.error('Google login error:', err);
+    throw err;
+  }
 }
 
 export async function loginWithEmail(email, password) {
@@ -54,7 +58,6 @@ export async function logout() {
   await signOut(auth);
 }
 
-getRedirectResult(auth).catch(() => {});
 
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
