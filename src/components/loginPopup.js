@@ -1,5 +1,5 @@
 // === Login Popup Component ===
-import { loginWithGoogle, loginWithEmail, registerWithEmail } from '../js/auth.js';
+import { loginWithGoogle, loginWithEmail, registerWithEmail, onUserChange } from '../js/auth.js';
 
 let isRegisterMode = false;
 
@@ -67,8 +67,16 @@ export function renderLoginPopup() {
 
   document.body.appendChild(overlay);
 
+  // Auto-close when user logs in (covers Google popup + any method)
+  const unsubAuth = onUserChange((user) => {
+    if (user && document.getElementById('login-popup-overlay')) {
+      close();
+    }
+  });
+
   // Close handlers
   const close = () => {
+    unsubAuth();
     overlay.classList.add('closing');
     setTimeout(() => overlay.remove(), 250);
   };
@@ -140,8 +148,26 @@ export function renderLoginPopup() {
   });
 
   // Google login
-  document.getElementById('login-google-btn').addEventListener('click', () => {
-    loginWithGoogle();
+  document.getElementById('login-google-btn').addEventListener('click', async () => {
+    clearError();
+    const googleBtn = document.getElementById('login-google-btn');
+    googleBtn.disabled = true;
+    googleBtn.style.opacity = '0.6';
+    try {
+      await loginWithGoogle();
+      // close() is handled by onUserChange listener above
+    } catch (err) {
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        // User closed popup, no error needed
+      } else {
+        showError(getFirebaseErrorMessage(err.code));
+      }
+    } finally {
+      if (googleBtn) {
+        googleBtn.disabled = false;
+        googleBtn.style.opacity = '';
+      }
+    }
   });
 
   function setLoading(loading) {
@@ -190,6 +216,8 @@ function getFirebaseErrorMessage(code) {
     'auth/too-many-requests': 'Quá nhiều lần thử. Vui lòng thử lại sau',
     'auth/invalid-credential': 'Email hoặc mật khẩu không đúng',
     'auth/network-request-failed': 'Lỗi kết nối mạng',
+    'auth/popup-blocked': 'Popup bị chặn. Hãy cho phép popup cho trang này',
+    'auth/internal-error': 'Lỗi hệ thống. Vui lòng thử lại sau',
   };
   return messages[code] || 'Đã có lỗi xảy ra. Vui lòng thử lại';
 }

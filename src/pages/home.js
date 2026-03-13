@@ -2,7 +2,7 @@
 import { fetchJapaneseAnime, fetchByCategory, fetchTopAnimeMovies, fetchTopAnimeSeries } from '../js/api.js';
 import { filterAnimeOnly } from '../js/animeFilter.js';
 import { getContinueWatching } from '../js/watchHistory.js';
-import { renderHero, stopHero } from '../components/hero.js';
+import { renderHero, renderHeroSkeleton, stopHero } from '../components/hero.js';
 import { renderAnimeRow, renderSkeletonRow } from '../components/animeRow.js';
 import { renderContinueWatching } from '../components/continueWatching.js';
 import { renderTop10Row } from '../components/top10Row.js';
@@ -21,7 +21,10 @@ export async function renderHomePage() {
   main.appendChild(continueContainer);
   main.appendChild(content);
 
-  // Skeleton placeholders
+  // Hero skeleton — shows immediately while data loads
+  renderHeroSkeleton(heroContainer);
+
+  // Skeleton placeholders for rows
   renderSkeletonRow(content, 'Anime Mới Nhất');
   renderSkeletonRow(content, 'Hành Động');
 
@@ -31,29 +34,36 @@ export async function renderHomePage() {
     renderContinueWatching(continueContainer, continueItems);
   }
 
-  // Fetch EVERYTHING in parallel — 1 page is enough for hero + newest row
-  const [mainResult, actionResult, romanceResult, fantasyResult, mysteryResult] = await Promise.allSettled([
-    fetchJapaneseAnime(1),
+  // Fire hero data request FIRST, render as soon as it arrives
+  const heroPromise = fetchJapaneseAnime(1);
+
+  // Fire category requests in parallel (don't block hero)
+  const categoryPromise = Promise.allSettled([
     fetchByCategory('hanh-dong', 1),
     fetchByCategory('tinh-cam', 1),
     fetchByCategory('vien-tuong', 1),
     fetchByCategory('bi-an', 1),
   ]);
 
-  // — Render hero + newest immediately —
-  const allJapanAnime = mainResult.status === 'fulfilled'
-    ? filterAnimeOnly(mainResult.value.items || []).filter(i => i.country?.some(c => c.slug === 'nhat-ban'))
-    : [];
+  // Render hero as soon as its data is ready
+  let allJapanAnime = [];
+  try {
+    const mainResult = await heroPromise;
+    allJapanAnime = filterAnimeOnly(mainResult.items || [])
+      .filter(i => i.country?.some(c => c.slug === 'nhat-ban'));
+    renderHero(heroContainer, allJapanAnime.slice(0, 5));
+  } catch {
+    heroContainer.innerHTML = '';
+  }
 
-  renderHero(heroContainer, allJapanAnime.slice(0, 5));
+  // Newest row (uses same data as hero)
   content.innerHTML = '';
-
   const newest = allJapanAnime.slice(0, 24);
   if (newest.length > 0) {
     renderAnimeRow(content, 'Mới Cập Nhật 🔥', newest, '/anime');
   }
 
-  // — Top 10 (background, doesn’t block) —
+  // Top 10 (background, doesn't block)
   const top10Container = document.createElement('div');
   content.appendChild(top10Container);
   Promise.allSettled([fetchTopAnimeMovies(10), fetchTopAnimeSeries(10)]).then(([moviesR, seriesR]) => {
@@ -65,7 +75,9 @@ export async function renderHomePage() {
     }
   });
 
-  // — Genre rows (already fetched, render immediately) —
+  // Category rows — render as soon as categories finish
+  const [actionResult, romanceResult, fantasyResult, mysteryResult] = await categoryPromise;
+
   const filterJP = (result) => {
     if (result.status !== 'fulfilled') return [];
     const anime = filterAnimeOnly(result.value.items || []);

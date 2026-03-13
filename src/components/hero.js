@@ -14,6 +14,28 @@ function resolveImg(item) {
   return getImageUrl(file);
 }
 
+export function renderHeroSkeleton(container) {
+  container.innerHTML = `
+    <div class="hero">
+      <div class="hero-slides">
+        <div class="hero-slide active">
+          <div class="skeleton" style="width:100%;height:100%"></div>
+          <div class="hero-gradient"></div>
+          <div class="hero-content">
+            <div class="skeleton" style="width:120px;height:24px;border-radius:20px;margin-bottom:16px"></div>
+            <div class="skeleton" style="width:60%;height:32px;border-radius:6px;margin-bottom:12px"></div>
+            <div class="skeleton" style="width:40%;height:16px;border-radius:6px;margin-bottom:16px"></div>
+            <div style="display:flex;gap:12px">
+              <div class="skeleton" style="width:120px;height:44px;border-radius:10px"></div>
+              <div class="skeleton" style="width:100px;height:44px;border-radius:10px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderHero(container, items) {
   if (!items || items.length === 0) return;
 
