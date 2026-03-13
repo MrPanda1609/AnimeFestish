@@ -168,6 +168,7 @@ export function renderNavbar() {
   // Active link
   updateActiveLink();
   window.addEventListener('popstate', updateActiveLink);
+  window.addEventListener('routechange', updateActiveLink);
 
   // Bottom navigation
   document.querySelectorAll('.bottom-nav-item').forEach(item => {

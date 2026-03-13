@@ -200,9 +200,10 @@ input {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  gap: 12px;
   z-index: 9999;
   opacity: 1;
-  transition: opacity 0.35s var(--ease-out);
+  transition: opacity 0.3s var(--ease-out);
   pointer-events: all;
 }
 
@@ -212,38 +213,32 @@ input {
 }
 
 .intro-logo {
-  width: 140px;
-  height: 140px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
-  animation: introLogoIn 0.6s var(--ease-out) forwards,
- introPulse 2s ease-in-out 0.6s infinite;
-  filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.5))
-          drop-shadow(0 0 60px rgba(236, 72, 153, 0.3));
-  mix-blend-mode: screen;
+  animation: introFadeScale 0.35s var(--ease-out) forwards;
+  filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5));
 }
 
 .intro-title {
-  font-size: 2rem;
-  font-weight: 900;
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 40%, #ec4899 70%, #06b6d4 100%);
+  font-size: 1.4rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a78bfa, #ec4899);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-top: 20px;
   opacity: 0;
-  transform: translateY(10px);
-  animation: introTextIn 0.4s var(--ease-out) 0.2s forwards;
-  letter-spacing: 2px;
+  animation: introFadeUp 0.3s var(--ease-out) 0.1s forwards;
+  letter-spacing: 1px;
 }
 
 .intro-subtitle {
   color: var(--text-muted);
-  font-size: 0.8rem;
-  letter-spacing: 4px;
+  font-size: 0.7rem;
+  letter-spacing: 3px;
   text-transform: uppercase;
   opacity: 0;
-  animation: introTextIn 0.4s var(--ease-out) 0.35s forwards;
-  margin-top: 6px;
+  animation: introFadeUp 0.3s var(--ease-out) 0.15s forwards;
 }
 
 /* Loading spinner (shown during page transitions) */
@@ -269,35 +264,31 @@ input {
   letter-spacing: 1px;
 }
 
-@keyframes introLogoIn {
-  0% {
+@keyframes introFadeScale {
+  from {
     opacity: 0;
-    transform: scale(0.3) rotate(-20deg);
+    transform: scale(0.7);
   }
-  50% {
+  to {
     opacity: 1;
-    transform: scale(1.1) rotate(5deg);
+    transform: scale(1);
   }
-  100% {
+}
+
+@keyframes introFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
+    transform: translateY(0);
   }
 }
 
 @keyframes introPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.05); }
-}
-
-@keyframes introTextIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* === Navbar === */

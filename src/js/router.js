@@ -67,6 +67,7 @@ export async function handleRouteChange() {
     if (thisNav !== navId) return;
     currentCleanup = cleanup;
     setTimeout(() => mainContent.classList.remove('fade-in'), 500);
+    window.dispatchEvent(new Event('routechange'));
   } else {
     resetSEO();
     mainContent.innerHTML = `
