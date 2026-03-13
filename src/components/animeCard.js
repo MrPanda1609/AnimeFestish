@@ -1,4 +1,5 @@
 // === Anime Card Component ===
+import { navigate } from '../js/router.js';
 import { getImageUrl, toWebpUrl } from '../js/api.js';
 
 function resolveImg(item) {
@@ -36,7 +37,7 @@ export function createAnimeCard(item) {
   `;
 
   card.addEventListener('click', () => {
-    window.location.hash = `#/anime/${item.slug}`;
+    navigate(`/anime/${item.slug}`);
   });
 
   return card;

@@ -21,11 +21,11 @@ export function renderNavbar() {
             <svg class="mobile-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" class="mobile-search-input" id="mobile-search-input" placeholder="Tìm anime..." />
           </div>
-          <a href="#/" class="nav-link" data-route="/">Trang chủ</a>
-          <a href="#/anime" class="nav-link" data-route="/anime">Anime</a>
-          <a href="#/category/hanh-dong" class="nav-link" data-route="/category/hanh-dong">Hành Động</a>
-          <a href="#/category/tinh-cam" class="nav-link" data-route="/category/tinh-cam">Tình Cảm</a>
-          <a href="#/category/vien-tuong" class="nav-link" data-route="/category/vien-tuong">Viễn Tưởng</a>
+          <a href="/" class="nav-link" data-route="/">Trang chủ</a>
+          <a href="/anime" class="nav-link" data-route="/anime">Anime</a>
+          <a href="/category/hanh-dong" class="nav-link" data-route="/category/hanh-dong">Hành Động</a>
+          <a href="/category/tinh-cam" class="nav-link" data-route="/category/tinh-cam">Tình Cảm</a>
+          <a href="/category/vien-tuong" class="nav-link" data-route="/category/vien-tuong">Viễn Tưởng</a>
         </div>
         <div class="navbar-search" id="nav-search">
           <button class="navbar-search-btn" id="search-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
@@ -152,7 +152,7 @@ export function renderNavbar() {
         const spanEl = profileSelector.querySelector('span');
         if (spanEl) spanEl.textContent = name;
         // Re-render current page to reflect new profile history
-        navigate(window.location.hash.slice(1) || '/');
+        navigate(window.location.pathname || '/');
       });
     });
 
@@ -168,7 +168,7 @@ export function renderNavbar() {
         profileSelector.querySelector('.profile-avatar').textContent = name.charAt(0).toUpperCase();
         const spanEl = profileSelector.querySelector('span');
         if (spanEl) spanEl.textContent = name;
-        navigate(window.location.hash.slice(1) || '/');
+        navigate(window.location.pathname || '/');
       }
     });
   }
@@ -183,7 +183,7 @@ export function renderNavbar() {
 
   // Active link
   updateActiveLink();
-  window.addEventListener('hashchange', updateActiveLink);
+  window.addEventListener('popstate', updateActiveLink);
 
   // Bottom navigation
   document.querySelectorAll('.bottom-nav-item').forEach(item => {
@@ -212,20 +212,20 @@ export function renderNavbar() {
 }
 
 function updateActiveLink() {
-  const hash = window.location.hash.slice(1) || '/';
+  const path = window.location.pathname || '/';
   document.querySelectorAll('.nav-link').forEach(link => {
     const route = link.getAttribute('data-route');
-    link.classList.toggle('active', hash === route || (route !== '/' && hash.startsWith(route)));
+    link.classList.toggle('active', path === route || (route !== '/' && path.startsWith(route)));
   });
   // Bottom nav
   document.querySelectorAll('.bottom-nav-item').forEach(item => {
     const route = item.dataset.route;
     if (route === '/search') {
-      item.classList.toggle('active', hash.startsWith('/search'));
+      item.classList.toggle('active', path.startsWith('/search'));
     } else if (route === '/') {
-      item.classList.toggle('active', hash === '/');
+      item.classList.toggle('active', path === '/');
     } else {
-      item.classList.toggle('active', hash === route || hash.startsWith(route));
+      item.classList.toggle('active', path === route || path.startsWith(route));
     }
   });
 }

@@ -2,12 +2,14 @@
 import { searchAnime } from '../js/api.js';
 import { filterAnimeOnly } from '../js/animeFilter.js';
 import { createAnimeCard, createSkeletonCard } from '../components/animeCard.js';
+import { updateSEO } from '../js/seo.js';
 
 let searchTimeout = null;
 
 export async function renderSearchPage({ keyword }) {
   const main = document.getElementById('main-content');
   const decodedKeyword = keyword ? decodeURIComponent(keyword) : '';
+  updateSEO({ title: decodedKeyword ? `Tìm kiếm: ${decodedKeyword}` : 'Tìm kiếm Anime', description: decodedKeyword ? `Kết quả tìm kiếm anime "${decodedKeyword}" vietsub miễn phí trên AnimeFetish.` : 'Tìm kiếm anime Nhật Bản vietsub miễn phí trên AnimeFetish.', url: `/search/${keyword || ''}` });
 
   main.innerHTML = `
     <div class="search-page">
@@ -103,7 +105,7 @@ export async function renderSearchPage({ keyword }) {
     searchTimeout = setTimeout(() => {
       const q = input.value.trim();
       if (q) {
-        window.history.replaceState(null, '', `#/search/${encodeURIComponent(q)}`);
+        window.history.replaceState(null, '', `/search/${encodeURIComponent(q)}`);
       }
       doSearch(q);
     }, 500);

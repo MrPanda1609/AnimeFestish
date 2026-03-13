@@ -1,6 +1,7 @@
 // === Anime Detail Page ===
 import { fetchAnimeDetail, getImageUrl, fetchKitsuPoster, toWebpUrl } from '../js/api.js';
 import { navigate } from '../js/router.js';
+import { updateSEO } from '../js/seo.js';
 
 function decodeHtml(html) {
   const txt = document.createElement('textarea');
@@ -38,7 +39,7 @@ export async function renderDetailPage({ slug }) {
         <div class="empty-state" style="padding-top:120px">
           <div class="empty-state-icon">😔</div>
           <div class="empty-state-text">Không tìm thấy anime này</div>
-          <a href="#/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
+          <a href="/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
         </div>
       `;
       return;
@@ -53,6 +54,13 @@ export async function renderDetailPage({ slug }) {
     }
 
     const posterUrl = resolveImg(movie.poster_url || movie.thumb_url);
+    updateSEO({
+      title: `${movie.name}${movie.origin_name ? ' - ' + movie.origin_name : ''} Việtsub HD`,
+      description: `Xem ${movie.name} vietsub miễn phí chất lượng cao. ${(movie.content || movie.description || '').replace(/<[^>]*>/g, '').slice(0, 150)}`,
+      image: posterUrl || thumbUrl,
+      url: `/anime/${slug}`,
+      type: 'video.other',
+    });
     const thumbUrl = resolveImg(movie.thumb_url || movie.poster_url);
     const categories = movie.category || [];
     const countries = movie.country || [];
@@ -157,7 +165,7 @@ export async function renderDetailPage({ slug }) {
       <div class="empty-state" style="padding-top:120px">
         <div class="empty-state-icon">⚠️</div>
         <div class="empty-state-text">Lỗi tải dữ liệu: ${err.message}</div>
-        <a href="#/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
+        <a href="/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
       </div>
     `;
   }

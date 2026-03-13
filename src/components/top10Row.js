@@ -1,4 +1,5 @@
 // === Top 10 Ranking Row Component ===
+import { navigate } from '../js/router.js';
 import { getImageUrl, toWebpUrl } from '../js/api.js';
 
 function resolveImg(item) {
@@ -51,7 +52,7 @@ export function renderTop10Row(container, title, items, moreLink = null) {
     `;
 
     card.addEventListener('click', () => {
-      window.location.hash = `#/anime/${item.slug}`;
+      navigate(`/anime/${item.slug}`);
     });
 
     scrollContainer.appendChild(card);

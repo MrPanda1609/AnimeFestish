@@ -6,10 +6,12 @@ import { renderHero, stopHero } from '../components/hero.js';
 import { renderAnimeRow, renderSkeletonRow } from '../components/animeRow.js';
 import { renderContinueWatching } from '../components/continueWatching.js';
 import { renderTop10Row } from '../components/top10Row.js';
+import { updateSEO } from '../js/seo.js';
 
 export async function renderHomePage() {
   const main = document.getElementById('main-content');
   main.innerHTML = '';
+  updateSEO({ title: 'Trang Chủ - Xem Anime Vietsub HD Miễn Phí', description: 'AnimeFetish - Xem anime Nhật Bản vietsub miễn phí chất lượng cao Full HD. Kho anime khổng lồ, cập nhật nhanh nhất.', url: '/' });
 
   // Containers
   const heroContainer = document.createElement('div');
@@ -48,7 +50,7 @@ export async function renderHomePage() {
 
   const newest = allJapanAnime.slice(0, 24);
   if (newest.length > 0) {
-    renderAnimeRow(content, 'Mới Cập Nhật 🔥', newest, '#/anime');
+    renderAnimeRow(content, 'Mới Cập Nhật 🔥', newest, '/anime');
   }
 
   // — Top 10 (background, doesn’t block) —
@@ -71,10 +73,10 @@ export async function renderHomePage() {
   };
 
   const rows = [
-    { title: 'Hành Động ⚔️', items: filterJP(actionResult), link: '#/category/hanh-dong' },
-    { title: 'Tình Cảm 💕', items: filterJP(romanceResult), link: '#/category/tinh-cam' },
-    { title: 'Viễn Tưởng 🌌', items: filterJP(fantasyResult), link: '#/category/vien-tuong' },
-    { title: 'Bí Ẩn 🔮', items: filterJP(mysteryResult), link: '#/category/bi-an' },
+    { title: 'Hành Động ⚔️', items: filterJP(actionResult), link: '/category/hanh-dong' },
+    { title: 'Tình Cảm 💕', items: filterJP(romanceResult), link: '/category/tinh-cam' },
+    { title: 'Viễn Tưởng 🌌', items: filterJP(fantasyResult), link: '/category/vien-tuong' },
+    { title: 'Bí Ẩn 🔮', items: filterJP(mysteryResult), link: '/category/bi-an' },
   ];
 
   for (const row of rows) {

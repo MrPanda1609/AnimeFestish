@@ -2,6 +2,7 @@
 import { fetchAnimeList, fetchByCategory, fetchByCountry } from '../js/api.js';
 import { filterAnimeOnly } from '../js/animeFilter.js';
 import { createAnimeCard, createSkeletonCard } from '../components/animeCard.js';
+import { updateSEO } from '../js/seo.js';
 
 const CATEGORY_TITLES = {
   'anime': 'Tất Cả Anime',
@@ -24,19 +25,20 @@ export async function renderAnimePage({ category }) {
   const slug = category || 'anime';
   const title = CATEGORY_TITLES[slug] || slug;
   const isCountry = COUNTRY_SLUGS.includes(slug);
+  updateSEO({ title: `${title} - Anime Vietsub Miễn Phí`, description: `Xem danh sách anime ${title} vietsub miễn phí chất lượng cao trên AnimeFetish.`, url: `/${isCountry ? 'category' : 'category'}/${slug}` });
 
   main.innerHTML = `
     <div class="category-header">
       <h1 class="category-title">${title}</h1>
       <div class="category-filters">
-        <a href="#/anime" class="filter-chip ${slug === 'anime' ? 'active' : ''}">📺 Tất cả</a>
-        <a href="#/category/hanh-dong" class="filter-chip ${slug === 'hanh-dong' ? 'active' : ''}">⚔️ Hành Động</a>
-        <a href="#/category/tinh-cam" class="filter-chip ${slug === 'tinh-cam' ? 'active' : ''}">💕 Tình Cảm</a>
-        <a href="#/category/vien-tuong" class="filter-chip ${slug === 'vien-tuong' ? 'active' : ''}">🌌 Viễn Tưởng</a>
-        <a href="#/category/phieu-luu" class="filter-chip ${slug === 'phieu-luu' ? 'active' : ''}">🗺️ Phiêu Lưu</a>
-        <a href="#/category/hai-huoc" class="filter-chip ${slug === 'hai-huoc' ? 'active' : ''}">😂 Hài Hước</a>
-        <a href="#/category/bi-an" class="filter-chip ${slug === 'bi-an' ? 'active' : ''}">🔮 Bí Ẩn</a>
-        <a href="#/category/tam-ly" class="filter-chip ${slug === 'tam-ly' ? 'active' : ''}">🧠 Tâm Lý</a>
+        <a href="/anime" class="filter-chip ${slug === 'anime' ? 'active' : ''}">📺 Tất cả</a>
+        <a href="/category/hanh-dong" class="filter-chip ${slug === 'hanh-dong' ? 'active' : ''}">⚔️ Hành Động</a>
+        <a href="/category/tinh-cam" class="filter-chip ${slug === 'tinh-cam' ? 'active' : ''}">💕 Tình Cảm</a>
+        <a href="/category/vien-tuong" class="filter-chip ${slug === 'vien-tuong' ? 'active' : ''}">🌌 Viễn Tưởng</a>
+        <a href="/category/phieu-luu" class="filter-chip ${slug === 'phieu-luu' ? 'active' : ''}">🗺️ Phiêu Lưu</a>
+        <a href="/category/hai-huoc" class="filter-chip ${slug === 'hai-huoc' ? 'active' : ''}">😂 Hài Hước</a>
+        <a href="/category/bi-an" class="filter-chip ${slug === 'bi-an' ? 'active' : ''}">🔮 Bí Ẩn</a>
+        <a href="/category/tam-ly" class="filter-chip ${slug === 'tam-ly' ? 'active' : ''}">🧠 Tâm Lý</a>
       </div>
     </div>
     <div class="section" style="padding-top:0">

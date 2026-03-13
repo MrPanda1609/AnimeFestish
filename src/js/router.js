@@ -1,4 +1,5 @@
-// === Hash-based SPA Router ===
+// === History-based SPA Router ===
+import { resetSEO } from './seo.js';
 
 const routes = {};
 let currentCleanup = null;
@@ -8,11 +9,12 @@ export function addRoute(path, handler) {
 }
 
 export function navigate(path) {
-  window.location.hash = '#' + path;
+  history.pushState({}, '', path);
+  handleRouteChange();
 }
 
 export function getCurrentRoute() {
-  return window.location.hash.slice(1) || '/';
+  return window.location.pathname || '/';
 }
 
 function matchRoute(path) {
@@ -64,22 +66,29 @@ export async function handleRouteChange() {
     // Remove animation class after it plays
     setTimeout(() => mainContent.classList.remove('fade-in'), 500);
   } else {
+    resetSEO();
     mainContent.innerHTML = `
       <div class="empty-state" style="padding-top: 120px;">
         <div class="empty-state-icon">🔍</div>
         <div class="empty-state-text">Không tìm thấy trang này</div>
-        <a href="#/" class="btn btn-primary" style="margin-top: 16px;">Về trang chủ</a>
+        <a href="/" class="btn btn-primary" style="margin-top: 16px;">Về trang chủ</a>
       </div>
     `;
   }
 }
 
 export function initRouter() {
-  window.addEventListener('hashchange', handleRouteChange);
-  // Handle initial load
-  if (!window.location.hash) {
-    window.location.hash = '#/';
-  } else {
-    handleRouteChange();
-  }
+  window.addEventListener('popstate', handleRouteChange);
+
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('#') || link.target === '_blank') return;
+    if (href.startsWith('/api')) return;
+    e.preventDefault();
+    navigate(href);
+  });
+
+  handleRouteChange();
 }

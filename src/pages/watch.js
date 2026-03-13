@@ -2,6 +2,7 @@
 import { fetchAnimeDetail, getImageUrl, getCleanM3u8Url, toWebpUrl } from '../js/api.js';
 import { navigate } from '../js/router.js';
 import { saveWatchProgress, getWatchProgress } from '../js/watchHistory.js';
+import { updateSEO } from '../js/seo.js';
 
 function decodeHtml(html) {
   const txt = document.createElement('textarea');
@@ -96,12 +97,19 @@ export async function renderWatchPage({ slug, ep }) {
     const movie = data.item || data.movie || data;
     const episodes = data.episodes || movie.episodes || [];
 
+    updateSEO({
+      title: `Xem ${movie.name} - Tập ${ep} Việtsub HD`,
+      description: `Xem ${movie.name} tập ${ep} vietsub miễn phí chất lượng cao trên AnimeFetish.`,
+      url: `/watch/${slug}/${ep}`,
+      type: 'video.episode',
+    });
+
     if (!movie || !movie.name) {
       main.innerHTML = `
         <div class="empty-state" style="padding-top:120px">
           <div class="empty-state-icon">😔</div>
           <div class="empty-state-text">Không tìm thấy anime này</div>
-          <a href="#/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
+          <a href="/" class="btn btn-primary" style="margin-top:16px">Về trang chủ</a>
         </div>
       `;
       return;
@@ -139,7 +147,7 @@ export async function renderWatchPage({ slug, ep }) {
         <div class="empty-state" style="padding-top:120px">
           <div class="empty-state-icon">📺</div>
           <div class="empty-state-text">Không tìm thấy tập phim này</div>
-          <a href="#/anime/${slug}" class="btn btn-primary" style="margin-top:16px">Quay lại</a>
+          <a href="/anime/${slug}" class="btn btn-primary" style="margin-top:16px">Quay lại</a>
         </div>
       `;
       return;
@@ -198,7 +206,7 @@ export async function renderWatchPage({ slug, ep }) {
                 ⬅ Tập trước
               </button>
             ` : ''}
-            <a href="#/anime/${slug}" class="btn btn-outline">📋 Danh sách tập</a>
+            <a href="/anime/${slug}" class="btn btn-outline">📋 Danh sách tập</a>
             ${nextEp ? `
               <button class="btn btn-primary" id="next-ep-btn" data-ep="${nextEp.slug || nextEp.name}">
                 Tập tiếp ➡
@@ -293,7 +301,7 @@ export async function renderWatchPage({ slug, ep }) {
       <div class="empty-state" style="padding-top:120px">
         <div class="empty-state-icon">⚠️</div>
         <div class="empty-state-text">Lỗi tải phim: ${err.message}</div>
-        <a href="#/anime/${slug}" class="btn btn-primary" style="margin-top:16px">Quay lại</a>
+        <a href="/anime/${slug}" class="btn btn-primary" style="margin-top:16px">Quay lại</a>
       </div>
     `;
   }
