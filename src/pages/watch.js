@@ -152,13 +152,23 @@ export async function renderWatchPage({ slug, ep }) {
       return;
     }
 
+    // Resolve thumb URL with correct CDN before saving
+    const imgCdn = resp._imgCdn || movie._imgCdn || '';
+    function resolveThumb(file) {
+      if (!file) return '';
+      if (file.startsWith('http')) return file;
+      if (imgCdn) return `${imgCdn}${file}`;
+      return getImageUrl(file);
+    }
+    const resolvedThumb = resolveThumb(movie.thumb_url || movie.poster_url);
+
     // Save to watch history immediately
     saveWatchProgress(
       slug,
       currentEp.name,
       currentEp.slug || currentEp.name,
       movie.name,
-      movie.thumb_url || movie.poster_url,
+      resolvedThumb,
       0, 0
     );
 
