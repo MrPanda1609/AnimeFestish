@@ -169,17 +169,7 @@ function setupPlayerControls(video) {
   wrapper.addEventListener('mousemove', showControls, { passive: true });
   showControls();
 
-  // --- Fullscreen + orientation lock ---
-  function onFullscreenChange() {
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (isFs) {
-      try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
-    } else {
-      try { screen.orientation.unlock(); } catch (e) {}
-    }
-  }
-  document.addEventListener('fullscreenchange', onFullscreenChange);
-  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+  // Fullscreen rotation handled globally in renderWatchPage
 
   // --- Skip Intro Button (85s, typical anime OP) ---
   const skipBtn = document.createElement('button');
@@ -364,6 +354,26 @@ function initIframePlayer(embedUrl) {
 
   destroyHls();
   wrapper.innerHTML = `<iframe id="player-iframe" src="${embedUrl}" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture; fullscreen" loading="lazy" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>`;
+  addIframeFullscreenBtn(wrapper);
+}
+
+// Add a landscape-fullscreen button on top of iframe players
+function addIframeFullscreenBtn(wrapper) {
+  const btn = document.createElement('button');
+  btn.className = 'player-iframe-fs-btn';
+  btn.title = 'Xem to\u00e0n m\u00e0n h\u00ecnh ngang';
+  btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  wrapper.appendChild(btn);
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const el = wrapper;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    }
+  });
 }
 
 export async function renderWatchPage({ slug, ep }) {
@@ -378,6 +388,18 @@ export async function renderWatchPage({ slug, ep }) {
       <div class="skeleton" style="width:100%;aspect-ratio:16/9;border-radius:8px"></div>
     </div>
   `;
+
+  // Global fullscreen orientation lock — works for BOTH <video> and <iframe>
+  function onGlobalFullscreenChange() {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (isFs) {
+      try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
+    } else {
+      try { screen.orientation.unlock(); } catch (e) {}
+    }
+  }
+  document.addEventListener('fullscreenchange', onGlobalFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onGlobalFullscreenChange);
 
   let cleanupComments = null;
   try {
@@ -548,9 +570,13 @@ export async function renderWatchPage({ slug, ep }) {
       </div>
     `;
 
-    // Initialize HLS player if m3u8 available
+    // Initialize player
     if (m3u8Url) {
       initHlsPlayer(m3u8Url, embedUrl);
+    } else if (embedUrl) {
+      // Iframe already in HTML, just add fullscreen button
+      const playerWrapper = main.querySelector('#player-wrapper');
+      if (playerWrapper) addIframeFullscreenBtn(playerWrapper);
     }
 
     // Event listeners
@@ -614,5 +640,8 @@ export async function renderWatchPage({ slug, ep }) {
     destroyHls();
     if (cleanupComments) cleanupComments();
     document.body.classList.remove('watching');
+    document.removeEventListener('fullscreenchange', onGlobalFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', onGlobalFullscreenChange);
+    try { screen.orientation.unlock(); } catch (e) {}
   };
 }
