@@ -1290,6 +1290,7 @@ input {
   z-index: 10;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  touch-action: none; /* Prevent browser scroll/zoom — JS handles all gestures */
 }
 
 /* --- Custom Progress Bar (pink, replaces native red) --- */
@@ -1298,22 +1299,19 @@ input {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 3px;
   background: rgba(255, 255, 255, 0.15);
   z-index: 22;
   cursor: pointer;
-  transition: height 0.2s, opacity 0.3s;
-  opacity: 0.6;
+  transition: height 0.2s, opacity 0.35s;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .controls-visible .player-progress {
   height: 6px;
   opacity: 1;
-}
-
-.controls-hidden .player-progress {
-  opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .player-progress-fill {
@@ -1357,11 +1355,13 @@ input {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.3s;
+  transform: translateY(4px);
+  transition: opacity 0.3s, transform 0.3s;
 }
 
 .controls-visible .player-time {
   opacity: 1;
+  transform: translateY(0);
 }
 
 /* Auto-hide controls: smooth cursor hide */
