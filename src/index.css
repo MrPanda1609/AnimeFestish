@@ -1283,6 +1283,87 @@ input {
   outline: none;
 }
 
+/* --- Touch Capture Layer --- */
+.player-touch-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Custom Progress Bar (pink, replaces native red) --- */
+.player-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 22;
+  cursor: pointer;
+  transition: height 0.2s, opacity 0.3s;
+  opacity: 0.6;
+}
+
+.controls-visible .player-progress {
+  height: 6px;
+  opacity: 1;
+}
+
+.controls-hidden .player-progress {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: 0 3px 3px 0;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 8px rgba(255, 45, 120, 0.4);
+}
+
+.player-progress-handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  border: 2px solid #fff;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.2s var(--ease-spring);
+  box-shadow: 0 0 10px rgba(255, 45, 120, 0.5);
+  z-index: 1;
+}
+
+.controls-visible .player-progress-handle {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* --- Time Display --- */
+.player-time {
+  position: absolute;
+  bottom: 14px;
+  left: 12px;
+  z-index: 22;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.controls-visible .player-time {
+  opacity: 1;
+}
+
 /* Auto-hide controls: smooth cursor hide */
 .player-wrapper.controls-hidden {
   cursor: none;

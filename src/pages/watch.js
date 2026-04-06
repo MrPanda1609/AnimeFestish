@@ -97,27 +97,75 @@ function setupPlayerControls(video) {
     showOSD(icon, `${sign}${sec}s`);
   }
 
-  // --- Auto-hide controls ---
+  // --- Kill native red controls permanently, use custom system ---
+  video.controls = false;
+
+  // Touch capture layer — sits on top of video, below OSD/skip
+  const touchLayer = document.createElement('div');
+  touchLayer.className = 'player-touch-layer';
+  wrapper.appendChild(touchLayer);
+
+  // Custom progress bar (pink, replaces red native one)
+  const progressWrap = document.createElement('div');
+  progressWrap.className = 'player-progress';
+  progressWrap.innerHTML = '<div class="player-progress-fill"></div><div class="player-progress-handle"></div>';
+  wrapper.appendChild(progressWrap);
+  const progressFill = progressWrap.querySelector('.player-progress-fill');
+  const progressHandle = progressWrap.querySelector('.player-progress-handle');
+
+  // Time display
+  const timeDisplay = document.createElement('div');
+  timeDisplay.className = 'player-time';
+  wrapper.appendChild(timeDisplay);
+
+  function fmtTime(s) {
+    if (!s || !isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+  }
+
+  video.addEventListener('timeupdate', () => {
+    if (!video.duration) return;
+    const pct = (video.currentTime / video.duration) * 100;
+    progressFill.style.width = `${pct}%`;
+    progressHandle.style.left = `${pct}%`;
+    timeDisplay.textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+  });
+
+  // Progress bar seek on click/drag
+  let progressDragging = false;
+  function seekFromProgress(clientX) {
+    const rect = progressWrap.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    video.currentTime = pct * (video.duration || 0);
+  }
+  progressWrap.addEventListener('mousedown', (e) => { progressDragging = true; seekFromProgress(e.clientX); });
+  document.addEventListener('mousemove', (e) => { if (progressDragging) seekFromProgress(e.clientX); });
+  document.addEventListener('mouseup', () => { progressDragging = false; });
+  progressWrap.addEventListener('touchstart', (e) => { seekFromProgress(e.touches[0].clientX); }, { passive: true });
+  progressWrap.addEventListener('touchmove', (e) => { e.preventDefault(); seekFromProgress(e.touches[0].clientX); }, { passive: false });
+
+  // Controls visibility
   function showControls() {
-    video.controls = true;
+    wrapper.classList.add('controls-visible');
     wrapper.classList.remove('controls-hidden');
     clearTimeout(controlsHideTimer);
-    controlsHideTimer = setTimeout(hideControls, 3000);
+    controlsHideTimer = setTimeout(hideControls, 3500);
   }
 
   function hideControls() {
     if (video.paused) return;
-    video.controls = false;
+    wrapper.classList.remove('controls-visible');
     wrapper.classList.add('controls-hidden');
   }
 
   video.addEventListener('pause', () => {
     clearTimeout(controlsHideTimer);
-    video.controls = true;
+    wrapper.classList.add('controls-visible');
     wrapper.classList.remove('controls-hidden');
   });
   video.addEventListener('play', () => showControls());
-  video.addEventListener('seeking', showControls);
   wrapper.addEventListener('mousemove', showControls, { passive: true });
   showControls();
 
@@ -151,16 +199,16 @@ function setupPlayerControls(video) {
     skipBtn.classList.toggle('visible', show);
   });
 
-  // --- Touch Gesture Engine ---
+  // --- Touch Gesture Engine (on touch layer, NOT native video) ---
   let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
   let gesture = null; // 'brightness' | 'volume' | 'seek' | null
   let startBrightness = 1, startVolume = 1, startTime = 0;
-  const DEAD_ZONE = 15; // px before gesture activates
+  const DEAD_ZONE = 15;
 
   // Double-tap tracking
   let lastTapTime = 0, lastTapX = 0, tapAccum = 0, tapFlushTimer = null;
 
-  wrapper.addEventListener('touchstart', (e) => {
+  touchLayer.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     touchStartX = t.clientX;
@@ -172,39 +220,36 @@ function setupPlayerControls(video) {
     startTime = video.currentTime;
   }, { passive: true });
 
-  wrapper.addEventListener('touchmove', (e) => {
+  touchLayer.addEventListener('touchmove', (e) => {
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     const dx = t.clientX - touchStartX;
     const dy = t.clientY - touchStartY;
     const rect = wrapper.getBoundingClientRect();
 
-    // Determine gesture on first significant movement
     if (!gesture) {
       if (Math.abs(dx) < DEAD_ZONE && Math.abs(dy) < DEAD_ZONE) return;
       if (Math.abs(dy) > Math.abs(dx)) {
-        // Vertical — left half = brightness, right half = volume
         gesture = touchStartX < rect.left + rect.width / 2 ? 'brightness' : 'volume';
       } else {
         gesture = 'seek';
       }
-      // Once gesture detected, hide native controls
-      video.controls = false;
+      // Hide controls during gesture
+      wrapper.classList.remove('controls-visible');
       wrapper.classList.add('controls-hidden');
     }
 
+    e.preventDefault();
+
     if (gesture === 'brightness') {
-      e.preventDefault();
-      const delta = -dy / (rect.height * 0.7); // full height ~= 1.0 range
+      const delta = -dy / (rect.height * 0.7);
       setBrightness(startBrightness + delta);
     } else if (gesture === 'volume') {
-      e.preventDefault();
       const delta = -dy / (rect.height * 0.7);
       setVolume(startVolume + delta);
     } else if (gesture === 'seek') {
-      e.preventDefault();
       const duration = video.duration || 1;
-      const maxSeek = Math.min(duration * 0.5, 120); // cap at 50% or 2min
+      const maxSeek = Math.min(duration * 0.5, 120);
       const delta = (dx / rect.width) * maxSeek;
       video.currentTime = Math.max(0, Math.min(duration, startTime + delta));
       const sec = Math.round(video.currentTime - startTime);
@@ -216,42 +261,57 @@ function setupPlayerControls(video) {
     }
   }, { passive: false });
 
-  wrapper.addEventListener('touchend', (e) => {
+  touchLayer.addEventListener('touchend', () => {
     const elapsed = Date.now() - touchStartTime;
 
-    // If no gesture was activated and it was a short tap → handle tap/double-tap
     if (!gesture && elapsed < 300) {
       const now = Date.now();
       const rect = wrapper.getBoundingClientRect();
       const tapX = touchStartX;
       const isRight = tapX > rect.left + rect.width / 2;
-      const isLeft = tapX < rect.left + rect.width / 2;
 
       if (now - lastTapTime < 350 && Math.abs(tapX - lastTapX) < 80) {
-        // Consecutive tap on same side
+        // Double-tap → seek ±5s with ripple
         const seekDir = isRight ? 5 : -5;
         tapAccum += seekDir;
         seekBy(seekDir);
         showTapRipple(isRight ? 'right' : 'left');
-
-        // Flush accumulated display after taps stop
         clearTimeout(tapFlushTimer);
         tapFlushTimer = setTimeout(() => { tapAccum = 0; }, 600);
       } else {
-        // Single tap — just show/hide controls
+        // Single tap → toggle play/pause + show controls
         tapAccum = 0;
+        if (video.paused) {
+          video.play().catch(() => {});
+          showOSD('<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', '');
+        } else {
+          video.pause();
+          showOSD('<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>', '');
+        }
         showControls();
       }
 
       lastTapTime = now;
       lastTapX = tapX;
     } else if (gesture) {
-      // Gesture ended, show controls briefly
       showControls();
     }
 
     gesture = null;
   }, { passive: true });
+
+  // Desktop: click on touch layer = play/pause
+  touchLayer.addEventListener('click', (e) => {
+    if (e.target !== touchLayer) return;
+    if (video.paused) {
+      video.play().catch(() => {});
+      showOSD('<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', '');
+    } else {
+      video.pause();
+      showOSD('<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>', '');
+    }
+    showControls();
+  });
 }
 
 async function initHlsPlayer(m3u8Url, embedFallbackUrl) {
@@ -261,7 +321,7 @@ async function initHlsPlayer(m3u8Url, embedFallbackUrl) {
   destroyHls();
 
   const cleanUrl = getCleanM3u8Url(m3u8Url);
-  wrapper.innerHTML = `<video id="hls-player" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>`;
+  wrapper.innerHTML = `<video id="hls-player" playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>`;
   const video = document.getElementById('hls-player');
 
   try {
@@ -412,7 +472,7 @@ export async function renderWatchPage({ slug, ep }) {
       <div class="watch-container">
         <div class="player-wrapper" id="player-wrapper">
           ${m3u8Url ? `
-            <video id="hls-player" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>
+            <video id="hls-player" playsinline crossorigin="anonymous" style="width:100%;height:100%;background:#000"></video>
           ` : embedUrl ? `
             <iframe 
               id="player-iframe"
