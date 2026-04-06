@@ -1369,13 +1369,20 @@ input {
   cursor: none;
 }
 
-/* Fullscreen player fills screen */
+/* Fullscreen player fills entire screen */
 .player-wrapper:fullscreen,
 .player-wrapper:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
   border-radius: 0;
   border: none;
   box-shadow: none;
   background: #000;
+  margin: 0;
+  padding: 0;
 }
 
 .player-wrapper:fullscreen::before,
@@ -1384,9 +1391,11 @@ input {
 }
 
 .player-wrapper:fullscreen video,
-.player-wrapper:-webkit-full-screen video {
-  width: 100%;
-  height: 100%;
+.player-wrapper:-webkit-full-screen video,
+.player-wrapper:fullscreen iframe,
+.player-wrapper:-webkit-full-screen iframe {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: contain;
 }
 
