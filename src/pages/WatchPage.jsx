@@ -139,6 +139,7 @@ export default function WatchPage() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playerError, setPlayerError] = useState(null);
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
 
   movieRef.current = movie;
   currentEpRef.current = currentEp;
@@ -573,24 +574,41 @@ export default function WatchPage() {
             </div>
             <div className="player-controls-row">
               <div className="player-controls-left">
-                <button
-                  className="player-ctrl-btn"
-                  onClick={() => {
-                    const v = videoRef.current;
-                    if (v) { v.muted = !v.muted; setMuted(!v.muted); }
-                  }}
-                  title={muted ? "Bật tiếng" : "Tắt tiếng"}
-                >
-                  {muted ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                    </svg>
-                  )}
-                </button>
+                <div className="player-volume-wrap">
+                  <button
+                    className="player-ctrl-btn"
+                    onClick={() => {
+                      const v = videoRef.current;
+                      if (v) { v.muted = !v.muted; setMuted(v.muted); }
+                    }}
+                    title={muted ? "Bật tiếng" : "Tắt tiếng"}
+                  >
+                    {muted || volume === 0 ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                    )}
+                  </button>
+                  <input
+                    className="player-volume-slider"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={muted ? 0 : volume}
+                    onChange={(e) => {
+                      const v = videoRef.current;
+                      const val = parseFloat(e.target.value);
+                      if (v) { v.volume = val; v.muted = val === 0; }
+                      setVolume(val);
+                      setMuted(val === 0);
+                    }}
+                  />
+                </div>
                 <div className="player-time">
                   {fmtTime(currentTime)} / {fmtTime(duration)}
                 </div>

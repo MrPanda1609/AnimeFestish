@@ -5300,6 +5300,29 @@ body::before {
   gap: var(--space-xs);
 }
 
+.player-volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.player-volume-slider {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: width 0.2s var(--ease-premium), opacity 0.2s;
+  height: 3px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.player-volume-wrap:hover .player-volume-slider,
+.player-volume-slider:focus {
+  width: 72px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Fix: override old absolute positioning for elements inside bottom-controls */
 .player-bottom-controls .player-progress {
   position: relative;
