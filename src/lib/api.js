@@ -128,6 +128,50 @@ function adaptNguoncItems(items, defaultType = "") {
   return items.map((i) => adaptNguoncItem(i, defaultType));
 }
 
+function isJapaneseAnimeItem(item) {
+  if (!item) return false;
+  const type = String(item.type || "").toLowerCase();
+  const categories = Array.isArray(item.category) ? item.category : [];
+  const countries = Array.isArray(item.country) ? item.country : [];
+
+  const isAnimeType =
+    type === "hoathinh" ||
+    type === "hoat-hinh" ||
+    categories.some((c) => {
+      const slug = String(c?.slug || c?.id || "").toLowerCase();
+      const name = String(c?.name || "").toLowerCase();
+      return slug.includes("hoat-hinh") || name.includes("hoạt hình") || name.includes("anime");
+    });
+
+  const isJapan = countries.some((c) => {
+    const slug = String(c?.slug || c?.id || "").toLowerCase();
+    const name = String(c?.name || "").toLowerCase();
+    return slug === "nhat-ban" || slug === "japan" || name.includes("nhật") || name.includes("japan");
+  });
+
+  // PhimAPI list/detail from /danh-sach/hoat-hinh?country=nhat-ban is already filtered.
+  return isAnimeType && (isJapan || countries.length === 0);
+}
+
+function getEpisodesFromResult(result) {
+  const data = result?.data || result;
+  const item = data?.item || data?.movie || data;
+  return data?.episodes || item?.episodes || result?.episodes || [];
+}
+
+function hasPlayableEpisodes(result) {
+  const eps = getEpisodesFromResult(result);
+  return eps.some((server) =>
+    (server.server_data || server.items || []).some((ep) => ep.link_m3u8 || ep.m3u8 || ep.link_embed || ep.embed)
+  );
+}
+
+function isJapaneseAnimeResult(result) {
+  const data = result?.data || result;
+  const item = data?.item || data?.movie || data;
+  return isJapaneseAnimeItem(item);
+}
+
 function tagItems(items, source) {
   if (!Array.isArray(items)) return [];
   return items.map((item) => ({
@@ -158,7 +202,7 @@ async function fetchAllOphim(path) {
       const data = await fetchFromOphim(source, path);
       const parsed = data?.data || data;
       return {
-        items: tagItems(parsed?.items || [], source),
+        items: tagItems(parsed?.items || [], source).filter(isJapaneseAnimeItem),
         pagination: parsed?.params?.pagination || {},
       };
     })
@@ -208,23 +252,16 @@ function mergeResults(...results) {
 }
 
 export async function fetchAnimeList(page = 1) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(
-      `/v1/api/danh-sach/hoat-hinh?page=${page}&country=nhat-ban`
-    ),
-    fetchNguoncList(
-      `/api/films/danh-sach/hoat-hinh?page=${page}`,
-      "hoathinh"
-    ),
-  ]);
+  const data = await fetchAllOphim(
+    `/v1/api/danh-sach/hoat-hinh?page=${page}&sort_field=modified.time&country=nhat-ban`
+  );
 
-  const merged = mergeResults(...results);
   return {
-    items: merged.items,
+    items: data.items || [],
     params: {
       pagination: {
-        totalItems: merged.totalItems,
-        totalPages: merged.totalPages,
+        totalItems: data.totalItems || 0,
+        totalPages: data.totalPages || 1,
         currentPage: page,
       },
     },
@@ -232,32 +269,12 @@ export async function fetchAnimeList(page = 1) {
 }
 
 export async function fetchJapaneseAnime(page = 1) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(
-      `/v1/api/danh-sach/hoat-hinh?page=${page}&country=nhat-ban`
-    ),
-    fetchNguoncList(
-      `/api/films/danh-sach/hoat-hinh?page=${page}`,
-      "hoathinh"
-    ),
-  ]);
-
-  const merged = mergeResults(...results);
-  return {
-    items: merged.items,
-    params: {
-      pagination: {
-        totalItems: merged.totalItems,
-        totalPages: merged.totalPages,
-        currentPage: page,
-      },
-    },
-  };
+  return fetchAnimeList(page);
 }
 
 export async function searchAnime(keyword, page = 1) {
   const data = await fetchAllOphim(
-    `/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&page=${page}`
+    `/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&page=${page}&category=hoat-hinh&country=nhat-ban`
   );
   return {
     items: data.items || [],
@@ -356,44 +373,20 @@ export async function fetchAnimeDetail(slug) {
     const allResults = await Promise.allSettled([...ophimPromises, nguoncPromise]);
     const fulfilled = allResults
       .filter((r) => r.status === "fulfilled")
-      .map((r) => r.value);
+      .map((r) => r.value)
+      .filter(isJapaneseAnimeResult);
     if (fulfilled.length === 0) {
       throw new Error("no source");
     }
 
-    const hasEps = (r) => {
-      const eps = r.data?.episodes || r.episodes || [];
-      return eps.some((s) => (s.server_data || s.items || []).length > 0);
-    };
-    const getName = (r) =>
-      (r.data?.item?.name || r.data?.movie?.name || "").toLowerCase().trim();
-    const getOrigin = (r) =>
-      (r.data?.item?.origin_name || r.data?.item?.original_name || "").toLowerCase().trim();
+    // Prefer PhimAPI/KKPhim because list/detail slugs and episodes are stable there.
+    const ophimResult = fulfilled.find((r) => r._source !== "NguonC" && hasPlayableEpisodes(r));
+    if (ophimResult) return ophimResult;
 
-    // OPhim results come first, NguonC last
-    const ophimResult = fulfilled.find((r) => r._source !== "NguonC");
-    const nguoncResult = fulfilled.find((r) => r._source === "NguonC");
+    const nguoncResult = fulfilled.find((r) => r._source === "NguonC" && hasPlayableEpisodes(r));
+    if (nguoncResult) return nguoncResult;
 
-    // If OPhim has episodes, use it
-    if (ophimResult && hasEps(ophimResult)) return ophimResult;
-
-    // If only NguonC has episodes, verify names match to avoid slug collision
-    if (nguoncResult && hasEps(nguoncResult)) {
-      if (!ophimResult) return nguoncResult;
-      const oName = getName(ophimResult);
-      const nName = getName(nguoncResult);
-      const oOrigin = getOrigin(ophimResult);
-      const nOrigin = getOrigin(nguoncResult);
-      // Check both Vietnamese name and origin name match
-      const nameMatch = oName === nName || oName.includes(nName) || nName.includes(oName);
-      const originMatch = oOrigin && nOrigin && (oOrigin === nOrigin || oOrigin.includes(nOrigin) || nOrigin.includes(oOrigin));
-      if (nameMatch && (originMatch || !oOrigin || !nOrigin)) {
-        return nguoncResult;
-      }
-      // Names differ -> slug collision, keep OPhim metadata (correct anime, no eps)
-    }
-
-    return ophimResult || fulfilled[0];
+    throw new Error("no playable episodes");
   } catch {
     throw new Error("Khong tim thay anime tren bat ky nguon nao");
   }
@@ -421,18 +414,16 @@ export async function fetchKitsuPoster(originName) {
 }
 
 export async function fetchByCategory(category, page = 1) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(`/v1/api/the-loai/${category}?page=${page}`),
-    fetchNguoncList(`/api/films/the-loai/${category}?page=${page}`),
-  ]);
+  const data = await fetchAllOphim(
+    `/v1/api/the-loai/${category}?page=${page}&country=nhat-ban`
+  );
 
-  const merged = mergeResults(...results);
   return {
-    items: merged.items,
+    items: data.items || [],
     params: {
       pagination: {
-        totalItems: merged.totalItems,
-        totalPages: merged.totalPages,
+        totalItems: data.totalItems || 0,
+        totalPages: data.totalPages || 1,
         currentPage: page,
       },
     },
@@ -440,18 +431,17 @@ export async function fetchByCategory(category, page = 1) {
 }
 
 export async function fetchByCountry(country, page = 1) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(`/v1/api/quoc-gia/${country}?page=${page}`),
-    fetchNguoncList(`/api/films/quoc-gia/${country}?page=${page}`),
-  ]);
+  const countrySlug = country || "nhat-ban";
+  const data = await fetchAllOphim(
+    `/v1/api/danh-sach/hoat-hinh?page=${page}&country=${countrySlug}`
+  );
 
-  const merged = mergeResults(...results);
   return {
-    items: merged.items,
+    items: data.items || [],
     params: {
       pagination: {
-        totalItems: merged.totalItems,
-        totalPages: merged.totalPages,
+        totalItems: data.totalItems || 0,
+        totalPages: data.totalPages || 1,
         currentPage: page,
       },
     },
@@ -459,47 +449,30 @@ export async function fetchByCountry(country, page = 1) {
 }
 
 export async function fetchTopAnimeMovies(limit = 10) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(
-      `/v1/api/danh-sach/phim-le?page=1&sort_field=modified.time&category=hoat-hinh&country=nhat-ban&limit=${limit}`
-    ),
-    fetchNguoncList(`/api/films/the-loai/hoat-hinh?page=1`, "hoathinh"),
-  ]);
+  // PhimAPI returns 500 for /phim-le + category=hoat-hinh + country=nhat-ban.
+  // Use stable Japanese animation endpoint, then keep movie/full entries only.
+  const data = await fetchAllOphim(
+    `/v1/api/danh-sach/hoat-hinh?page=1&sort_field=modified.time&country=nhat-ban&limit=${limit * 3}`
+  );
 
-  const allItems = [];
-  if (results[0].status === "fulfilled")
-    allItems.push(...results[0].value.items);
-  if (results[1].status === "fulfilled") {
-    const movies = results[1].value.items.filter(
-      (i) => i.type === "single" || i.episode_current === "Full"
-    );
-    allItems.push(...movies);
-  }
-
-  return deduplicateBySlug(allItems).slice(0, limit);
+  return deduplicateBySlug(
+    (data.items || []).filter(
+      (i) => i.type === "single" || (i.episode_current || "").toLowerCase().includes("full")
+    )
+  ).slice(0, limit);
 }
 
 export async function fetchTopAnimeSeries(limit = 10) {
-  const results = await Promise.allSettled([
-    fetchAllOphim(
-      `/v1/api/danh-sach/hoat-hinh?page=1&sort_field=modified.time&country=nhat-ban&limit=${limit}`
-    ),
-    fetchNguoncList(`/api/films/danh-sach/hoat-hinh?page=1`, "hoathinh"),
-  ]);
+  const data = await fetchAllOphim(
+    `/v1/api/danh-sach/hoat-hinh?page=1&sort_field=modified.time&country=nhat-ban&limit=${limit}`
+  );
 
-  const allItems = [];
-  if (results[0].status === "fulfilled")
-    allItems.push(...results[0].value.items);
-  if (results[1].status === "fulfilled")
-    allItems.push(...results[1].value.items);
-
-  return deduplicateBySlug(allItems).slice(0, limit);
+  return deduplicateBySlug(data.items || []).slice(0, limit);
 }
 
 export function getCleanM3u8Url(m3u8Url) {
   if (!m3u8Url) return "";
-  // Play directly from source — no proxy needed (CORS: *)
-  return m3u8Url;
+  return `${M3U8_PROXY_BASE}/clean?url=${encodeURIComponent(m3u8Url)}`;
 }
 
 export function getProxiedKeyUrl(keyUrl) {
