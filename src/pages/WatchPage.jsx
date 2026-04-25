@@ -510,15 +510,15 @@ export default function WatchPage() {
     }
   };
 
-  // --- Mobile Touch Gestures ---
-  // Swipe horizontal: seek, Swipe vertical: volume (left side) / brightness (right side, N/A)
-  // Double tap left/right: skip -/+ 10s
-  // Single tap: toggle play / show controls
+  // --- Mobile Touch Gestures (on wrapper, not on a separate layer) ---
+  // 1. Tap (≤300ms, <15px movement): toggle play/pause + show controls
+  // 2. Double tap (<350ms between taps): seek ±10s with OSD feedback
+  // 3. Horizontal swipe (>20px, dominant): seek by position
   const handleTouchStart = useCallback((e) => {
-    // Ignore touches on buttons, progress bar, inputs
-    const tag = e.target.tagName;
-    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'A' || e.target.closest('.player-bottom-controls')) return;
-
+    // Let buttons, progress bar, inputs handle their own events
+    if (e.target.closest('.player-bottom-controls') ||
+        e.target.closest('button') ||
+        e.target.tagName === 'INPUT') return;
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
     touchStartXRef.current = touch.clientX;
@@ -528,21 +528,15 @@ export default function WatchPage() {
   const handleTouchMove = useCallback((e) => {
     if (!touchStartRef.current) return;
     if (e.target.closest('.player-bottom-controls')) return;
-
     const touch = e.touches[0];
-    const dx = touch.clientX - touchStartXRef.current;
-    const absDx = Math.abs(dx);
+    const dx = Math.abs(touch.clientX - touchStartXRef.current);
     const dy = Math.abs(touch.clientY - touchStartYRef.current);
-
-    // Only treat as horizontal seek if dx > 20px and dominant direction
-    if (absDx > 20 && absDx > dy) {
+    // Horizontal swipe → seek by position
+    if (dx > 20 && dx > dy) {
       e.preventDefault();
       const video = videoRef.current;
-      if (!video || !video.duration) return;
-
-      // Calculate seek position based on touch position relative to wrapper
       const wrapper = wrapperRef.current;
-      if (!wrapper) return;
+      if (!video || !video.duration || !wrapper) return;
       const rect = wrapper.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
       video.currentTime = pct * video.duration;
@@ -553,45 +547,32 @@ export default function WatchPage() {
 
   const handleTouchEnd = useCallback((e) => {
     if (!touchStartRef.current) return;
-
     const elapsed = Date.now() - touchStartRef.current.time;
-    const changedTouch = e.changedTouches?.[0];
-    const dx = changedTouch ? Math.abs(changedTouch.clientX - touchStartXRef.current) : 0;
-
-    // Only count as tap if short duration and minimal movement
+    const ct = e.changedTouches?.[0];
+    const dx = ct ? Math.abs(ct.clientX - touchStartXRef.current) : 0;
+    // Tap: short duration, minimal movement
     if (elapsed < 300 && dx < 15) {
       const now = Date.now();
-      const tapX = changedTouch?.clientX || touchStartXRef.current;
+      const tapX = ct?.clientX || touchStartXRef.current;
       const wrapper = wrapperRef.current;
       if (!wrapper) return;
-
-      const wrapperRect = wrapper.getBoundingClientRect();
-      const relX = tapX - wrapperRect.left;
-      const isLeftHalf = relX < wrapperRect.width / 2;
-
+      const relX = tapX - wrapper.getBoundingClientRect().left;
+      const isLeftHalf = relX < wrapper.getBoundingClientRect().width / 2;
       if (now - lastTapRef.current < 350) {
-        // Double tap detected — seek ±10s
+        // Double tap → seek ±10s
         lastTapRef.current = 0;
-        const seekDelta = isLeftHalf ? -10 : 10;
-        seekBy(seekDelta);
-
-        // Show OSD feedback
+        const delta = isLeftHalf ? -10 : 10;
+        seekBy(delta);
         clearTimeout(osdTimerRef.current);
-        setOsd({
-          type: 'skip',
-          value: seekDelta,
-          x: isLeftHalf ? 25 : 75,
-        });
+        setOsd({ type: 'skip', value: delta, x: isLeftHalf ? 25 : 75 });
         osdTimerRef.current = setTimeout(() => setOsd(null), 600);
       } else {
-        // Single tap — toggle play (don't auto-hide, let showControls handle it)
+        // Single tap → toggle play
         lastTapRef.current = now;
-        lastTapXRef.current = tapX;
         togglePlay();
         showControls();
       }
     }
-
     touchStartRef.current = null;
   }, [seekBy, togglePlay, showControls]);
 
@@ -712,11 +693,20 @@ export default function WatchPage() {
           className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"}`}
           ref={wrapperRef}
           onMouseMove={showControls}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onMouseLeave={() => {
+            if (!videoRef.current?.paused) setControlsVisible(false);
+          }}
         >
+          {/* Video rendered FIRST so touch layer sits above it */}
           <video ref={videoRef} className="player-video" playsInline />
+
+          {/* Touch capture layer — sits above video, below controls. Handles ALL gestures */}
+          <div
+            className="player-touch-layer"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          />
 
           {/* OSD feedback for double-tap seek */}
           {osd && (
@@ -741,9 +731,6 @@ export default function WatchPage() {
               )}
             </div>
           )}
-
-          {/* Touch zone — single tap toggles play, double-tap seeks */}
-          <div className="player-touch-layer" />
 
           {showAdSkip && (
             <button

@@ -1409,10 +1409,6 @@ input {
 
 /* Touch devices: disable hover-based cursor hiding */
 @media (hover: none) and (pointer: coarse) {
-  .player-touch-layer {
-    pointer-events: none;
-  }
-
   .player-wrapper:hover::before {
     opacity: 0;
   }
@@ -5776,30 +5772,6 @@ body::before {
   .player-center-btn {
     width: 64px;
     height: 64px;
-  }
-
-  /* Touch layer: let wrapper handle gestures, not the layer itself */
-  .player-touch-layer {
-    pointer-events: none;
-  }
-
-  /* Progress bar: always accessible on mobile, bigger touch area */
-  .player-bottom-controls .player-progress {
-    height: 20px;
-    margin-bottom: -8px;
-  }
-
-  .controls-visible .player-bottom-controls .player-progress {
-    height: 24px;
-  }
-
-  .player-bottom-controls .player-progress .player-progress-fill {
-    border-radius: 3px;
-  }
-
-  .player-bottom-controls .player-progress .player-progress-handle {
-    width: 16px;
-    height: 16px;
   }
 
   /* Bottom nav active indicator dot */
