@@ -273,8 +273,10 @@ export async function fetchJapaneseAnime(page = 1) {
 }
 
 export async function searchAnime(keyword, page = 1) {
+  // PhimAPI search returns 500 when category/country filters are combined.
+  // Search broadly first, then fetchAllOphim filters to Japanese animation client-side.
   const data = await fetchAllOphim(
-    `/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&page=${page}&category=hoat-hinh&country=nhat-ban`
+    `/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&page=${page}`
   );
   return {
     items: data.items || [],

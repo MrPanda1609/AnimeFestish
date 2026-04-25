@@ -510,28 +510,40 @@ export default function WatchPage() {
     }
   };
 
-  // --- Mobile Touch Gestures (on wrapper, not on a separate layer) ---
-  // 1. Tap (≤300ms, <15px movement): toggle play/pause + show controls
-  // 2. Double tap (<350ms between taps): seek ±10s with OSD feedback
-  // 3. Horizontal swipe (>20px, dominant): seek by position
+  // --- Mobile Touch Gestures ---
+  // Single tap only reveals controls. Play/pause is handled only by explicit buttons.
+  // Seek gestures are limited to the right half of the player to avoid accidental scrubbing.
   const handleTouchStart = useCallback((e) => {
-    // Let buttons, progress bar, inputs handle their own events
     if (e.target.closest('.player-bottom-controls') ||
         e.target.closest('button') ||
         e.target.tagName === 'INPUT') return;
+
     const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    const relX = touch.clientX - rect.left;
+    const isRightHalf = relX >= rect.width / 2;
+
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+      isRightHalf,
+    };
     touchStartXRef.current = touch.clientX;
     touchStartYRef.current = touch.clientY;
   }, []);
 
   const handleTouchMove = useCallback((e) => {
-    if (!touchStartRef.current) return;
+    if (!touchStartRef.current?.isRightHalf) return;
     if (e.target.closest('.player-bottom-controls')) return;
+
     const touch = e.touches[0];
     const dx = Math.abs(touch.clientX - touchStartXRef.current);
     const dy = Math.abs(touch.clientY - touchStartYRef.current);
-    // Horizontal swipe → seek by position
+
+    // Horizontal swipe on right half → seek by position
     if (dx > 20 && dx > dy) {
       e.preventDefault();
       const video = videoRef.current;
@@ -542,39 +554,38 @@ export default function WatchPage() {
       video.currentTime = pct * video.duration;
       setCurrentTime(pct * video.duration);
       setProgress(pct * 100);
+      showControls();
     }
-  }, []);
+  }, [showControls]);
 
   const handleTouchEnd = useCallback((e) => {
     if (!touchStartRef.current) return;
-    const elapsed = Date.now() - touchStartRef.current.time;
+
+    const start = touchStartRef.current;
+    const elapsed = Date.now() - start.time;
     const ct = e.changedTouches?.[0];
     const dx = ct ? Math.abs(ct.clientX - touchStartXRef.current) : 0;
-    // Tap: short duration, minimal movement
-    if (elapsed < 300 && dx < 15) {
+    const dy = ct ? Math.abs(ct.clientY - touchStartYRef.current) : 0;
+
+    // Tap: short duration, minimal movement. Never toggles play/pause.
+    if (elapsed < 300 && dx < 15 && dy < 15) {
       const now = Date.now();
-      const tapX = ct?.clientX || touchStartXRef.current;
-      const wrapper = wrapperRef.current;
-      if (!wrapper) return;
-      const relX = tapX - wrapper.getBoundingClientRect().left;
-      const isLeftHalf = relX < wrapper.getBoundingClientRect().width / 2;
-      if (now - lastTapRef.current < 350) {
-        // Double tap → seek ±10s
+
+      if (start.isRightHalf && now - lastTapRef.current < 350) {
+        // Double tap on right half → forward 10s only
         lastTapRef.current = 0;
-        const delta = isLeftHalf ? -10 : 10;
-        seekBy(delta);
+        seekBy(10);
         clearTimeout(osdTimerRef.current);
-        setOsd({ type: 'skip', value: delta, x: isLeftHalf ? 25 : 75 });
+        setOsd({ type: 'skip', value: 10, x: 75 });
         osdTimerRef.current = setTimeout(() => setOsd(null), 600);
       } else {
-        // Single tap → toggle play
-        lastTapRef.current = now;
-        togglePlay();
+        lastTapRef.current = start.isRightHalf ? now : 0;
         showControls();
       }
     }
+
     touchStartRef.current = null;
-  }, [seekBy, togglePlay, showControls]);
+  }, [seekBy, showControls]);
 
   // ...
 
