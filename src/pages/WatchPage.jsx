@@ -16,27 +16,62 @@ function fmtTime(s) {
   return `${m}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-const AD_PATTERNS = /convert|\/v\d+\/[0-9a-f]{20,}\/|adsplay|adserver|preroll|midroll|postroll/i;
+// Known ad injection timestamps (in seconds) from upstream providers
+// Format: { start, end, label }
+const KNOWN_AD_TIMESTAMPS = [
+  { start: 895, end: 925, label: "QC ~15:00" },  // 14:55 - 15:25
+  { start: 1495, end: 1525, label: "QC ~25:00" }, // 24:55 - 25:25 (if exists)
+];
+
+const AD_PATTERNS = /convert|\/v\d+\/[0-9a-f]{20,}\/|adsplay|adserver|preroll|midroll|postroll|\/ads?\//i;
 
 function stripAdSegments(playlist) {
   const lines = playlist.split("\n");
+  if (lines.length < 10) return playlist;
+
+  // Collect segment URLs and their path structures to detect anomalies
+  const segments = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith("#EXTINF:") && lines[i + 1] && !lines[i + 1].startsWith("#")) {
+      segments.push({ url: lines[i + 1], index: i + 1 });
+    }
+  }
+
+  // Detect the dominant path pattern (most segments share similar path structure)
+  const pathSignatures = new Map();
+  segments.forEach((s) => {
+    // Signature: strip filename, keep directory structure
+    const sig = s.url.replace(/[^/]+$/, "").replace(/\d+/g, "#");
+    pathSignatures.set(sig, (pathSignatures.get(sig) || 0) + 1);
+  });
+
+  // The signature with the most segments is the content; others are likely ads
+  let dominantSig = "";
+  let maxCount = 0;
+  pathSignatures.forEach((count, sig) => {
+    if (count > maxCount) { maxCount = count; dominantSig = sig; }
+  });
+
+  const adSegmentIndexes = new Set();
+  segments.forEach((s) => {
+    const sig = s.url.replace(/[^/]+$/, "").replace(/\d+/g, "#");
+    if (AD_PATTERNS.test(s.url) || (sig !== dominantSig && maxCount > segments.length * 0.5)) {
+      adSegmentIndexes.add(s.index);
+    }
+  });
+
   const out = [];
   let i = 0;
   while (i < lines.length) {
-    // Look ahead: if the segment URL (line after #EXTINF) matches ad pattern, skip it
-    if (lines[i].startsWith("#EXTINF:")) {
-      const segUrl = lines[i + 1] || "";
-      if (AD_PATTERNS.test(segUrl)) {
-        // Skip #EXTINF + segment URL + optional trailing #EXT-X-DISCONTINUITY
-        i += 2;
-        while (i < lines.length && lines[i] === "#EXT-X-DISCONTINUITY") i++;
-        continue;
-      }
-    }
-    // Also skip standalone DISCONTINUITY that precedes an ad block
-    if (lines[i] === "#EXT-X-DISCONTINUITY") {
-      const next = lines.slice(i + 1).find((l) => l && !l.startsWith("#EXT-X-DISCONTINUITY"));
-      if (next && AD_PATTERNS.test(next)) { i++; continue; }
+    // Skip ad segments (and their preceding #EXTINF)
+    if (adSegmentIndexes.has(i)) {
+      // Also remove the #EXTINF line that precedes this segment
+      if (out.length && out[out.length - 1].startsWith("#EXTINF:")) out.pop();
+      // And drop surrounding DISCONTINUITY markers
+      while (out.length && out[out.length - 1] === "#EXT-X-DISCONTINUITY") out.pop();
+      i++;
+      while (i < lines.length && lines[i] === "#EXT-X-DISCONTINUITY") i++;
+      continue;
     }
     out.push(lines[i]);
     i++;
@@ -140,6 +175,11 @@ export default function WatchPage() {
   const [playerError, setPlayerError] = useState(null);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [showAdSkip, setShowAdSkip] = useState(false);
+  const lastAdSkipRef = useRef(0);
+  const [autoSkipAds, setAutoSkipAds] = useState(() => {
+    return localStorage.getItem('autoSkipAds') === 'true';
+  });
 
   movieRef.current = movie;
   currentEpRef.current = currentEp;
@@ -313,6 +353,37 @@ export default function WatchPage() {
       setCurrentTime(video.currentTime);
       setDuration(video.duration);
       setProgress((video.currentTime / video.duration) * 100);
+
+      // Check if currently in a known ad segment
+      const now = video.currentTime;
+      let inAdSegment = false;
+      for (const ad of KNOWN_AD_TIMESTAMPS) {
+        if (now >= ad.start && now <= ad.end) {
+          inAdSegment = true;
+          break;
+        }
+      }
+
+      // Show skip button when entering ad segment (debounce 30s)
+      if (inAdSegment && (now - lastAdSkipRef.current) > 30) {
+        setShowAdSkip(true);
+      } else if (!inAdSegment) {
+        setShowAdSkip(false);
+      }
+
+      // Auto-skip if user has enabled auto-skip
+      if (inAdSegment && autoSkipAds) {
+        if ((now - lastAdSkipRef.current) > 30) {
+          for (const ad of KNOWN_AD_TIMESTAMPS) {
+            if (now >= ad.start && now <= ad.end) {
+              video.currentTime = ad.end + 1;
+              lastAdSkipRef.current = ad.end + 1;
+              setShowAdSkip(false);
+              break;
+            }
+          }
+        }
+      }
     };
 
     const onPlay = () => setPlaying(true);
@@ -508,6 +579,33 @@ export default function WatchPage() {
 
           <div className="player-touch-layer" onClick={togglePlay} />
 
+          {showAdSkip && (
+            <button
+              className="player-skip-ad active"
+              onClick={(e) => {
+                e.stopPropagation();
+                const video = videoRef.current;
+                if (!video) return;
+                const now = video.currentTime;
+                for (const ad of KNOWN_AD_TIMESTAMPS) {
+                  if (now >= ad.start && now <= ad.end) {
+                    video.currentTime = ad.end + 1;
+                    lastAdSkipRef.current = ad.end + 1;
+                    setShowAdSkip(false);
+                    break;
+                  }
+                }
+              }}
+              title="Bỏ qua quảng cáo"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+              Bỏ qua QC
+            </button>
+          )}
+
           <button
             className="player-center-btn"
             onClick={(e) => {
@@ -614,6 +712,21 @@ export default function WatchPage() {
                 </div>
               </div>
               <div className="player-controls-right">
+                <button
+                  className={`player-ctrl-btn ${autoSkipAds ? 'active' : ''}`}
+                  onClick={() => {
+                    setAutoSkipAds(prev => {
+                      localStorage.setItem('autoSkipAds', String(!prev));
+                      return !prev;
+                    });
+                  }}
+                  title={autoSkipAds ? 'Tắt tự động bỏ qua QC' : 'Bật tự động bỏ qua QC'}
+                  style={autoSkipAds ? { color: '#ff6b35' } : {}}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                  </svg>
+                </button>
                 <button
                   className="player-ctrl-btn"
                   onClick={() => seekBy(-10)}
