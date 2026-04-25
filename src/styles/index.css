@@ -1283,6 +1283,15 @@ input {
   outline: none;
 }
 
+.player-brightness-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: #000;
+  pointer-events: none;
+  transition: opacity 0.12s linear;
+}
+
 /* --- Touch Capture Layer --- */
 .player-touch-layer {
   position: absolute;
@@ -1470,6 +1479,12 @@ input {
 
 .player-osd-icon svg {
   display: block;
+}
+
+.player-osd-sub {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 /* === Double-Tap Ripple (YouTube-style) === */

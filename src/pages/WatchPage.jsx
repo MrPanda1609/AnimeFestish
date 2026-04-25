@@ -181,15 +181,15 @@ export default function WatchPage() {
     return localStorage.getItem('autoSkipAds') === 'true';
   });
 
-  // Mobile touch gesture state
-  const touchStartRef = useRef(null);
-  const touchStartXRef = useRef(0);
-  const touchStartYRef = useRef(0);
-  const lastTapRef = useRef(0);
-  const lastTapXRef = useRef(0);
+  // Cốc Cốc-like mobile gesture state
+  const gestureRef = useRef(null);
+  const lastTapRef = useRef({ time: 0, side: null, total: 0 });
   const osdTimerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
   const clickSuppressUntilRef = useRef(0);
-  const [osd, setOsd] = useState(null); // { type: 'seek' | 'skip', value: number, x: number }
+  const [brightness, setBrightness] = useState(1);
+  const [seekPreview, setSeekPreview] = useState(null);
+  const [osd, setOsd] = useState(null);
 
   movieRef.current = movie;
   currentEpRef.current = currentEp;
@@ -511,63 +511,6 @@ export default function WatchPage() {
     }
   };
 
-  // --- Mobile Touch Gestures ---
-  // Single tap only reveals controls. Play/pause is handled only by explicit buttons.
-  // Seek gestures are limited to the right half of the player to avoid accidental scrubbing.
-  const handleTouchStart = useCallback((e) => {
-    if (e.target.closest('.player-bottom-controls') ||
-        e.target.closest('button') ||
-        e.target.tagName === 'INPUT') return;
-
-    const touch = e.touches[0];
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    const relX = touch.clientX - rect.left;
-    const isRightHalf = relX >= rect.width / 2;
-
-    touchStartRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      time: Date.now(),
-      isRightHalf,
-      startTime: videoRef.current?.currentTime || 0,
-    };
-    touchStartXRef.current = touch.clientX;
-    touchStartYRef.current = touch.clientY;
-  }, []);
-
-  const handleTouchMove = useCallback((e) => {
-    if (!touchStartRef.current?.isRightHalf) return;
-    if (e.target.closest('.player-bottom-controls')) return;
-
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStartXRef.current);
-    const dy = Math.abs(touch.clientY - touchStartYRef.current);
-
-    // Horizontal swipe on right half → relative seek from current playback position
-    if (dx > 20 && dx > dy) {
-      e.preventDefault();
-      const video = videoRef.current;
-      const wrapper = wrapperRef.current;
-      if (!video || !video.duration || !wrapper) return;
-
-      const rect = wrapper.getBoundingClientRect();
-      const signedDx = touch.clientX - touchStartXRef.current;
-      // Drag sensitivity: full player width ≈ 90 seconds.
-      const deltaSeconds = (signedDx / rect.width) * 90;
-      const newTime = Math.max(
-        0,
-        Math.min(video.duration, (touchStartRef.current.startTime || 0) + deltaSeconds)
-      );
-
-      video.currentTime = newTime;
-      setCurrentTime(newTime);
-      setProgress((newTime / video.duration) * 100);
-      showControls();
-    }
-  }, [showControls]);
-
   const hideOrShowControls = useCallback(() => {
     if (controlsVisible) {
       clearTimeout(controlsTimerRef.current);
@@ -577,35 +520,166 @@ export default function WatchPage() {
     }
   }, [controlsVisible, showControls]);
 
+  const showGestureOsd = useCallback((next, delay = 700) => {
+    clearTimeout(osdTimerRef.current);
+    setOsd(next);
+    osdTimerRef.current = setTimeout(() => setOsd(null), delay);
+  }, []);
+
+  // --- Cốc Cốc-like Mobile Touch Gestures ---
+  // Tap: toggle UI only. Double tap: left -10s, right +10s. Horizontal drag: preview seek, commit on release.
+  // Vertical drag: left brightness overlay, right volume. Long press right: 2x speed.
+  const handleTouchStart = useCallback((e) => {
+    if (e.target.closest('.player-bottom-controls') ||
+        e.target.closest('button') ||
+        e.target.tagName === 'INPUT') return;
+
+    const touch = e.touches[0];
+    const wrapper = wrapperRef.current;
+    const video = videoRef.current;
+    if (!wrapper || !video) return;
+
+    const rect = wrapper.getBoundingClientRect();
+    const relX = touch.clientX - rect.left;
+    const side = relX < rect.width / 2 ? 'left' : 'right';
+
+    clearTimeout(longPressTimerRef.current);
+    gestureRef.current = {
+      mode: null,
+      side,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      time: Date.now(),
+      startVideoTime: video.currentTime || 0,
+      previewTime: null,
+      startVolume: video.muted ? 0 : video.volume,
+      startBrightness: brightness,
+      longPressActive: false,
+    };
+
+    if (side === 'right') {
+      longPressTimerRef.current = setTimeout(() => {
+        const g = gestureRef.current;
+        const v = videoRef.current;
+        if (!g || !v || g.mode) return;
+        g.mode = 'speed';
+        g.longPressActive = true;
+        v.playbackRate = 2;
+        showGestureOsd({ type: 'speed', value: 2, x: 75 }, 1000);
+      }, 450);
+    }
+  }, [brightness, showGestureOsd]);
+
+  const handleTouchMove = useCallback((e) => {
+    const g = gestureRef.current;
+    if (!g || e.target.closest('.player-bottom-controls')) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - g.startX;
+    const dy = touch.clientY - g.startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    if (!g.mode && (absDx > 18 || absDy > 18)) {
+      clearTimeout(longPressTimerRef.current);
+      g.mode = absDx > absDy ? 'seek' : (g.side === 'right' ? 'volume' : 'brightness');
+    }
+
+    const video = videoRef.current;
+    const wrapper = wrapperRef.current;
+    if (!video || !wrapper) return;
+
+    if (g.mode === 'seek') {
+      e.preventDefault();
+      if (!video.duration) return;
+      const rect = wrapper.getBoundingClientRect();
+      const deltaSeconds = (dx / rect.width) * 90;
+      const preview = Math.max(0, Math.min(video.duration, g.startVideoTime + deltaSeconds));
+      g.previewTime = preview;
+      setSeekPreview(preview);
+      setCurrentTime(preview);
+      setProgress((preview / video.duration) * 100);
+      setControlsVisible(true);
+      setOsd({ type: 'seek', value: preview, delta: Math.round(preview - g.startVideoTime), x: 50 });
+    } else if (g.mode === 'volume') {
+      e.preventDefault();
+      const rect = wrapper.getBoundingClientRect();
+      const nextVolume = Math.max(0, Math.min(1, g.startVolume - dy / rect.height));
+      video.volume = nextVolume;
+      video.muted = nextVolume === 0;
+      setVolume(nextVolume);
+      setMuted(nextVolume === 0);
+      setControlsVisible(true);
+      setOsd({ type: 'volume', value: Math.round(nextVolume * 100), x: 75 });
+    } else if (g.mode === 'brightness') {
+      e.preventDefault();
+      const rect = wrapper.getBoundingClientRect();
+      const nextBrightness = Math.max(0.25, Math.min(1, g.startBrightness - dy / rect.height));
+      setBrightness(nextBrightness);
+      setControlsVisible(true);
+      setOsd({ type: 'brightness', value: Math.round(nextBrightness * 100), x: 25 });
+    }
+  }, []);
+
   const handleTouchEnd = useCallback((e) => {
-    if (!touchStartRef.current) return;
+    const g = gestureRef.current;
+    if (!g) return;
 
-    const start = touchStartRef.current;
-    const elapsed = Date.now() - start.time;
+    clearTimeout(longPressTimerRef.current);
+    const video = videoRef.current;
+
+    if (g.mode === 'speed') {
+      if (video) video.playbackRate = 1;
+      showGestureOsd({ type: 'speed', value: 1, x: 75 }, 350);
+      gestureRef.current = null;
+      clickSuppressUntilRef.current = Date.now() + 500;
+      return;
+    }
+
+    if (g.mode === 'seek') {
+      if (video && g.previewTime != null) {
+        video.currentTime = g.previewTime;
+      }
+      setSeekPreview(null);
+      showControls();
+      setOsd(null);
+      gestureRef.current = null;
+      clickSuppressUntilRef.current = Date.now() + 500;
+      return;
+    }
+
+    if (g.mode === 'volume' || g.mode === 'brightness') {
+      clearTimeout(osdTimerRef.current);
+      osdTimerRef.current = setTimeout(() => setOsd(null), 650);
+      gestureRef.current = null;
+      clickSuppressUntilRef.current = Date.now() + 500;
+      return;
+    }
+
+    const elapsed = Date.now() - g.time;
     const ct = e.changedTouches?.[0];
-    const dx = ct ? Math.abs(ct.clientX - touchStartXRef.current) : 0;
-    const dy = ct ? Math.abs(ct.clientY - touchStartYRef.current) : 0;
+    const dx = ct ? Math.abs(ct.clientX - g.startX) : 0;
+    const dy = ct ? Math.abs(ct.clientY - g.startY) : 0;
 
-    // Tap: short duration, minimal movement. Never toggles play/pause.
     if (elapsed < 300 && dx < 15 && dy < 15) {
       const now = Date.now();
-
-      if (start.isRightHalf && now - lastTapRef.current < 350) {
-        // Double tap on right half → forward 10s only
-        lastTapRef.current = 0;
-        seekBy(10);
-        clearTimeout(osdTimerRef.current);
-        setOsd({ type: 'skip', value: 10, x: 75 });
-        osdTimerRef.current = setTimeout(() => setOsd(null), 600);
+      const last = lastTapRef.current;
+      if (last.side === g.side && now - last.time < 350) {
+        const delta = g.side === 'left' ? -10 : 10;
+        const total = (last.total || 0) + delta;
+        lastTapRef.current = { time: now, side: g.side, total };
+        clickSuppressUntilRef.current = now + 500;
+        seekBy(delta);
+        showGestureOsd({ type: 'skip', value: total, x: g.side === 'left' ? 25 : 75 }, 650);
       } else {
-        lastTapRef.current = start.isRightHalf ? now : 0;
+        lastTapRef.current = { time: now, side: g.side, total: 0 };
         clickSuppressUntilRef.current = now + 500;
         hideOrShowControls();
       }
     }
 
-    touchStartRef.current = null;
-  }, [seekBy, hideOrShowControls]);
+    gestureRef.current = null;
+  }, [hideOrShowControls, seekBy, showControls, showGestureOsd]);
 
   // ...
 
@@ -730,6 +804,7 @@ export default function WatchPage() {
         >
           {/* Video rendered FIRST so touch layer sits above it */}
           <video ref={videoRef} className="player-video" playsInline />
+          <div className="player-brightness-layer" style={{ opacity: Math.max(0, 1 - brightness) }} />
 
           {/* Touch capture layer — sits above video, below controls. Handles ALL gestures */}
           <div
@@ -761,7 +836,30 @@ export default function WatchPage() {
                       </>
                     )}
                   </svg>
-                  <span>{Math.abs(osd.value)}s</span>
+                  <span>{osd.value > 0 ? '+' : ''}{osd.value}s</span>
+                </>
+              )}
+              {osd.type === 'seek' && (
+                <>
+                  <span>{fmtTime(osd.value)}</span>
+                  <span className="player-osd-sub">{osd.delta > 0 ? '+' : ''}{osd.delta}s</span>
+                </>
+              )}
+              {osd.type === 'volume' && (
+                <>
+                  <span>Âm lượng</span>
+                  <span className="player-osd-sub">{osd.value}%</span>
+                </>
+              )}
+              {osd.type === 'brightness' && (
+                <>
+                  <span>Độ sáng</span>
+                  <span className="player-osd-sub">{osd.value}%</span>
+                </>
+              )}
+              {osd.type === 'speed' && (
+                <>
+                  <span>{osd.value}x</span>
                 </>
               )}
             </div>
