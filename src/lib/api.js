@@ -289,7 +289,7 @@ export async function searchAnime(keyword, page = 1) {
 }
 
 export async function fetchAnimeDetail(slug) {
-  const ophimPromises = SOURCES_OPHIM.map(async (source) => {
+  for (const source of SOURCES_OPHIM) {
     const data = await fetchFromOphim(source, `/v1/api/phim/${slug}`);
     if (data && (data.data || data.movie || data.item)) {
       const result = data;
@@ -299,97 +299,78 @@ export async function fetchAnimeDetail(slug) {
       }
       result._source = source.name;
       result._imgCdn = source.imgCdn;
+
+      if (isJapaneseAnimeResult(result) && hasPlayableEpisodes(result)) {
+        return result;
+      }
+    }
+  }
+
+  // Fallback only after PhimAPI/KKPhim fails. This avoids noisy NguonC 404s for valid KKPhim slugs.
+  const data = await fetchFromNguonc(`/api/film/${slug}`);
+  if (data && data.status === "success" && data.movie) {
+    const movie = data.movie;
+    const cats = [];
+    const countries = [];
+    if (
+      movie.category &&
+      typeof movie.category === "object" &&
+      !Array.isArray(movie.category)
+    ) {
+      Object.values(movie.category).forEach((cat) => {
+        const groupName = cat.group?.name || "";
+        (cat.list || []).forEach((item) => {
+          if (groupName === "Thể loại" || groupName === "Định dạng") {
+            cats.push({ name: item.name, slug: item.id || "" });
+          } else if (groupName === "Quốc gia") {
+            countries.push({ name: item.name, slug: item.id || "" });
+          }
+        });
+      });
+    }
+
+    const result = {
+      data: {
+        item: {
+          name: movie.name,
+          slug: movie.slug,
+          origin_name: movie.original_name || "",
+          poster_url: movie.poster_url || "",
+          thumb_url: movie.thumb_url || "",
+          content: movie.description || "",
+          type: "hoathinh",
+          year: movie.year || new Date().getFullYear(),
+          quality: movie.quality || "HD",
+          lang: movie.language || "Vietsub",
+          episode_current: movie.current_episode || "",
+          episode_total: movie.total_episodes ? String(movie.total_episodes) : "",
+          time: movie.time || "",
+          category: Array.isArray(movie.category) ? movie.category : cats,
+          country: Array.isArray(movie.country) ? movie.country : countries,
+          _source: "NguonC",
+          _imgCdn: "",
+        },
+        episodes: (movie.episodes || []).map((server) => ({
+          server_name: server.server_name || "Server",
+          server_data: (server.server_data || server.items || []).map((ep) => ({
+            name: ep.name,
+            slug: ep.slug,
+            filename: ep.filename || "",
+            link_embed: ep.link_embed || ep.embed || "",
+            link_m3u8: ep.link_m3u8 || ep.m3u8 || "",
+          })),
+        })),
+      },
+      _source: "NguonC",
+      _imgCdn: "",
+    };
+
+    if (isJapaneseAnimeResult(result) && hasPlayableEpisodes(result)) {
       return result;
     }
-    throw new Error("no data");
-  });
-
-  const nguoncPromise = (async () => {
-    const data = await fetchFromNguonc(`/api/film/${slug}`);
-    if (data && data.status === "success" && data.movie) {
-      const movie = data.movie;
-      const cats = [];
-      const countries = [];
-      if (
-        movie.category &&
-        typeof movie.category === "object" &&
-        !Array.isArray(movie.category)
-      ) {
-        Object.values(movie.category).forEach((cat) => {
-          const groupName = cat.group?.name || "";
-          (cat.list || []).forEach((item) => {
-            if (groupName === "Thể loại" || groupName === "Định dạng") {
-              cats.push({ name: item.name, slug: item.id || "" });
-            } else if (groupName === "Quốc gia") {
-              countries.push({ name: item.name, slug: item.id || "" });
-            }
-          });
-        });
-      }
-      return {
-        data: {
-          item: {
-            name: movie.name,
-            slug: movie.slug,
-            origin_name: movie.original_name || "",
-            poster_url: movie.poster_url || "",
-            thumb_url: movie.thumb_url || "",
-            content: movie.description || "",
-            type: "hoathinh",
-            year: movie.year || new Date().getFullYear(),
-            quality: movie.quality || "HD",
-            lang: movie.language || "Vietsub",
-            episode_current: movie.current_episode || "",
-            episode_total: movie.total_episodes
-              ? String(movie.total_episodes)
-              : "",
-            time: movie.time || "",
-            category: Array.isArray(movie.category) ? movie.category : cats,
-            country: Array.isArray(movie.country) ? movie.country : countries,
-            _source: "NguonC",
-            _imgCdn: "",
-          },
-          episodes: (movie.episodes || []).map((server) => ({
-            server_name: server.server_name || "Server",
-            server_data: (server.server_data || server.items || []).map(
-              (ep) => ({
-                name: ep.name,
-                slug: ep.slug,
-                filename: ep.filename || "",
-                link_embed: ep.link_embed || ep.embed || "",
-                link_m3u8: ep.link_m3u8 || ep.m3u8 || "",
-              })
-            ),
-          })),
-        },
-        _source: "NguonC",
-        _imgCdn: "",
-      };
-    }
-    throw new Error("no data");
-  })();
-
-  try {
-    const allResults = await Promise.allSettled([...ophimPromises, nguoncPromise]);
-    const fulfilled = allResults
-      .filter((r) => r.status === "fulfilled")
-      .map((r) => r.value)
-      .filter(isJapaneseAnimeResult);
-    if (fulfilled.length === 0) {
-      throw new Error("no source");
-    }
-
-    // Prefer PhimAPI/KKPhim because list/detail slugs and episodes are stable there.
-    const ophimResult = fulfilled.find((r) => r._source !== "NguonC" && hasPlayableEpisodes(r));
-    if (ophimResult) return ophimResult;
-
-    const nguoncResult = fulfilled.find((r) => r._source === "NguonC" && hasPlayableEpisodes(r));
-    if (nguoncResult) return nguoncResult;
-
-    throw new Error("no playable episodes");
-  } catch {
-    throw new Error("Khong tim thay anime tren bat ky nguon nao");
   }
+
+  throw new Error("Không tìm thấy phim hoặc tập phát từ nguồn hiện tại");
 }
 
 export async function fetchKitsuPoster(originName) {
@@ -472,7 +453,9 @@ export async function fetchTopAnimeSeries(limit = 10) {
 
 export function getCleanM3u8Url(m3u8Url) {
   if (!m3u8Url) return "";
-  return `${M3U8_PROXY_BASE}/clean?url=${encodeURIComponent(m3u8Url)}`;
+  // Do not force /clean proxy: openapiphim returns 404 for some phim1280 CDN paths.
+  // HLS.js pLoader below still strips manifest-level ad segments client-side.
+  return m3u8Url;
 }
 
 export function getProxiedKeyUrl(keyUrl) {
