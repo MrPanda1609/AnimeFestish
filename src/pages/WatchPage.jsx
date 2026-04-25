@@ -181,6 +181,15 @@ export default function WatchPage() {
     return localStorage.getItem('autoSkipAds') === 'true';
   });
 
+  // Mobile touch gesture state
+  const touchStartRef = useRef(null);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const lastTapRef = useRef(0);
+  const lastTapXRef = useRef(0);
+  const osdTimerRef = useRef(null);
+  const [osd, setOsd] = useState(null); // { type: 'seek' | 'skip', value: number, x: number }
+
   movieRef.current = movie;
   currentEpRef.current = currentEp;
 
@@ -456,26 +465,137 @@ export default function WatchPage() {
     }
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     const wrapper = wrapperRef.current;
     const video = videoRef.current;
     if (!wrapper) return;
 
     if (document.fullscreenElement || document.webkitFullscreenElement) {
+      // Unlock orientation when exiting fullscreen
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch {}
+      }
       (document.exitFullscreen || document.webkitExitFullscreen)?.call(
         document
       );
     } else {
       const fn = wrapper.requestFullscreen || wrapper.webkitRequestFullscreen;
       if (fn) {
-        fn.call(wrapper).catch(() => {
+        try {
+          await fn.call(wrapper);
+          // Lock to landscape after entering fullscreen
+          if (screen.orientation && screen.orientation.lock) {
+            try { await screen.orientation.lock('landscape'); } catch {}
+          }
+        } catch {
           const vfn =
             video?.webkitEnterFullscreen || video?.webkitRequestFullscreen;
-          if (vfn) vfn.call(video);
-        });
+          if (vfn) {
+            vfn.call(video);
+            if (screen.orientation && screen.orientation.lock) {
+              try { await screen.orientation.lock('landscape'); } catch {}
+            }
+          }
+        }
+      } else {
+        // Fallback for iOS Safari: use native video fullscreen
+        const vfn = video?.webkitEnterFullscreen;
+        if (vfn) {
+          vfn.call(video);
+          if (screen.orientation && screen.orientation.lock) {
+            try { await screen.orientation.lock('landscape'); } catch {}
+          }
+        }
       }
     }
   };
+
+  // --- Mobile Touch Gestures ---
+  // Swipe horizontal: seek, Swipe vertical: volume (left side) / brightness (right side, N/A)
+  // Double tap left/right: skip -/+ 10s
+  // Single tap: toggle play / show controls
+  const handleTouchStart = useCallback((e) => {
+    // Ignore touches on buttons, progress bar, inputs
+    const tag = e.target.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'A' || e.target.closest('.player-bottom-controls')) return;
+
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!touchStartRef.current) return;
+    if (e.target.closest('.player-bottom-controls')) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartXRef.current;
+    const absDx = Math.abs(dx);
+    const dy = Math.abs(touch.clientY - touchStartYRef.current);
+
+    // Only treat as horizontal seek if dx > 20px and dominant direction
+    if (absDx > 20 && absDx > dy) {
+      e.preventDefault();
+      const video = videoRef.current;
+      if (!video || !video.duration) return;
+
+      // Calculate seek position based on touch position relative to wrapper
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+      const rect = wrapper.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+      video.currentTime = pct * video.duration;
+      setCurrentTime(pct * video.duration);
+      setProgress(pct * 100);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (!touchStartRef.current) return;
+
+    const elapsed = Date.now() - touchStartRef.current.time;
+    const changedTouch = e.changedTouches?.[0];
+    const dx = changedTouch ? Math.abs(changedTouch.clientX - touchStartXRef.current) : 0;
+
+    // Only count as tap if short duration and minimal movement
+    if (elapsed < 300 && dx < 15) {
+      const now = Date.now();
+      const tapX = changedTouch?.clientX || touchStartXRef.current;
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const relX = tapX - wrapperRect.left;
+      const isLeftHalf = relX < wrapperRect.width / 2;
+
+      if (now - lastTapRef.current < 350) {
+        // Double tap detected — seek ±10s
+        lastTapRef.current = 0;
+        const seekDelta = isLeftHalf ? -10 : 10;
+        seekBy(seekDelta);
+
+        // Show OSD feedback
+        clearTimeout(osdTimerRef.current);
+        setOsd({
+          type: 'skip',
+          value: seekDelta,
+          x: isLeftHalf ? 25 : 75,
+        });
+        osdTimerRef.current = setTimeout(() => setOsd(null), 600);
+      } else {
+        // Single tap — toggle play (don't auto-hide, let showControls handle it)
+        lastTapRef.current = now;
+        lastTapXRef.current = tapX;
+        togglePlay();
+        showControls();
+      }
+    }
+
+    touchStartRef.current = null;
+  }, [seekBy, togglePlay, showControls]);
+
+  // ...
 
   const allEps = useMemo(
     () =>
@@ -543,6 +663,25 @@ export default function WatchPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
 
+  // Auto-lock landscape when entering fullscreen on mobile
+  useEffect(() => {
+    const onFsChange = () => {
+      if (screen.orientation && screen.orientation.lock) {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          try { screen.orientation.lock('landscape'); } catch {}
+        } else {
+          try { screen.orientation.unlock(); } catch {}
+        }
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
   if (error) {
     return (
       <div className="empty-state" style={{ paddingTop: 120 }}>
@@ -573,11 +712,38 @@ export default function WatchPage() {
           className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"}`}
           ref={wrapperRef}
           onMouseMove={showControls}
-          onTouchStart={showControls}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <video ref={videoRef} className="player-video" playsInline />
 
-          <div className="player-touch-layer" onClick={togglePlay} />
+          {/* OSD feedback for double-tap seek */}
+          {osd && (
+            <div className={`player-osd player-osd-${osd.type}`} style={{ left: `${osd.x}%` }}>
+              {osd.type === 'skip' && (
+                <>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {osd.value < 0 ? (
+                      <>
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                      </>
+                    ) : (
+                      <>
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </>
+                    )}
+                  </svg>
+                  <span>{Math.abs(osd.value)}s</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Touch zone — single tap toggles play, double-tap seeks */}
+          <div className="player-touch-layer" />
 
           {showAdSkip && (
             <button
@@ -650,15 +816,19 @@ export default function WatchPage() {
             <div
               className="player-progress"
               onClick={(e) => {
+                e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
                 seekTo((e.clientX - rect.left) / rect.width);
               }}
-              onTouchMove={(e) => {
-                e.preventDefault();
+              onTouchStart={(e) => {
+                e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
-                seekTo(
-                  (e.touches[0].clientX - rect.left) / rect.width
-                );
+                seekTo(Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width)));
+              }}
+              onTouchMove={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                seekTo(Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width)));
               }}
             >
               <div

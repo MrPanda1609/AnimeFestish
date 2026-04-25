@@ -1399,6 +1399,25 @@ input {
   object-fit: contain;
 }
 
+/* iOS Safari fullscreen: video element goes fullscreen natively */
+.player-video:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Touch devices: disable hover-based cursor hiding */
+@media (hover: none) and (pointer: coarse) {
+  .player-touch-layer {
+    pointer-events: none;
+  }
+
+  .player-wrapper:hover::before {
+    opacity: 0;
+  }
+}
+
 /* === Gesture OSD — Glass Pill with Spring Scale === */
 .player-osd {
   position: absolute;
@@ -1430,6 +1449,20 @@ input {
 .player-osd.visible {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+  animation: osdPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes osdPopIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.player-osd-skip {
+  animation: osdPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.player-osd-seek {
+  animation: osdPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .player-osd-icon {
@@ -5743,6 +5776,30 @@ body::before {
   .player-center-btn {
     width: 64px;
     height: 64px;
+  }
+
+  /* Touch layer: let wrapper handle gestures, not the layer itself */
+  .player-touch-layer {
+    pointer-events: none;
+  }
+
+  /* Progress bar: always accessible on mobile, bigger touch area */
+  .player-bottom-controls .player-progress {
+    height: 20px;
+    margin-bottom: -8px;
+  }
+
+  .controls-visible .player-bottom-controls .player-progress {
+    height: 24px;
+  }
+
+  .player-bottom-controls .player-progress .player-progress-fill {
+    border-radius: 3px;
+  }
+
+  .player-bottom-controls .player-progress .player-progress-handle {
+    width: 16px;
+    height: 16px;
   }
 
   /* Bottom nav active indicator dot */
