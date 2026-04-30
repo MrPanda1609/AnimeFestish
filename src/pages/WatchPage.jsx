@@ -6,6 +6,7 @@ import {
   getCleanM3u8Url,
   getProxiedKeyUrl,
 } from "@/lib/api.js";
+import { resolveSkipIntroMarker } from "@/lib/skip-intro.js";
 import { saveWatchProgress, getWatchProgress } from "@/lib/watch-history.js";
 import { useSEO } from "@/hooks/use-seo.js";
 
@@ -177,6 +178,8 @@ export default function WatchPage() {
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [showAdSkip, setShowAdSkip] = useState(false);
+  const [introSkip, setIntroSkip] = useState(null);
+  const [showIntroSkip, setShowIntroSkip] = useState(false);
   const lastAdSkipRef = useRef(0);
   const [autoSkipAds, setAutoSkipAds] = useState(() => {
     return localStorage.getItem('autoSkipAds') === 'true';
@@ -318,6 +321,8 @@ export default function WatchPage() {
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
+    setIntroSkip(null);
+    setShowIntroSkip(false);
 
     fetchAnimeDetail(slug)
       .then((resp) => {
@@ -367,8 +372,35 @@ export default function WatchPage() {
   }, [slug, ep, playM3u8, destroyHls]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (!currentEp || !duration) {
+      setIntroSkip(null);
+      setShowIntroSkip(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    resolveSkipIntroMarker({ slug, ep, episode: currentEp, duration }).then((marker) => {
+      if (cancelled) return;
+      setIntroSkip(marker);
+      if (!marker) setShowIntroSkip(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, ep, currentEp, duration]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    const syncDuration = () => {
+      if (!video.duration) return;
+      setDuration(video.duration);
+    };
 
     const onTimeUpdate = () => {
       if (!video.duration) return;
@@ -391,6 +423,12 @@ export default function WatchPage() {
         setShowAdSkip(true);
       } else if (!inAdSegment) {
         setShowAdSkip(false);
+      }
+
+      if (introSkip && now >= introSkip.start && now < introSkip.end - 1) {
+        setShowIntroSkip(true);
+      } else {
+        setShowIntroSkip(false);
       }
 
       // Auto-skip if user has enabled auto-skip
@@ -418,6 +456,8 @@ export default function WatchPage() {
       setPlaying(false);
     };
 
+    video.addEventListener("loadedmetadata", syncDuration);
+    video.addEventListener("durationchange", syncDuration);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -446,12 +486,14 @@ export default function WatchPage() {
     }, 5000);
 
     return () => {
+      video.removeEventListener("loadedmetadata", syncDuration);
+      video.removeEventListener("durationchange", syncDuration);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       clearInterval(saveTimerRef.current);
     };
-  }, [slug, ep]);
+  }, [slug, ep, autoSkipAds, introSkip]);
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
@@ -897,6 +939,29 @@ export default function WatchPage() {
                 </>
               )}
             </div>
+          )}
+
+          {introSkip && (
+            <button
+              className={`player-skip-intro ${showIntroSkip ? "visible" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const video = videoRef.current;
+                if (!video) return;
+                video.currentTime = Math.min(
+                  video.duration || introSkip.end,
+                  introSkip.end + 0.25
+                );
+                setShowIntroSkip(false);
+              }}
+              title="Bỏ qua intro"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+              Bỏ qua Intro
+            </button>
           )}
 
           {showAdSkip && (
