@@ -162,6 +162,9 @@ export default function WatchPage() {
   const currentEpRef = useRef(null);
   const fetchIdRef = useRef(0);
   const desiredPlayingRef = useRef(true);
+  const lastPlayerUiUpdateRef = useRef(0);
+  const showAdSkipRef = useRef(false);
+  const showIntroSkipRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -245,8 +248,8 @@ export default function WatchPage() {
       }
 
       const hls = new Hls({
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
         enableWorker: true,
         lowLatencyMode: false,
         fragLoadingTimeOut: 20000,
@@ -321,8 +324,12 @@ export default function WatchPage() {
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
+    setShowAdSkip(false);
     setIntroSkip(null);
     setShowIntroSkip(false);
+    lastPlayerUiUpdateRef.current = 0;
+    showAdSkipRef.current = false;
+    showIntroSkipRef.current = false;
 
     fetchAnimeDetail(slug)
       .then((resp) => {
@@ -402,11 +409,31 @@ export default function WatchPage() {
       setDuration(video.duration);
     };
 
+    const setAdSkipVisible = (visible) => {
+      if (showAdSkipRef.current === visible) return;
+      showAdSkipRef.current = visible;
+      setShowAdSkip(visible);
+    };
+
+    const setIntroSkipVisible = (visible) => {
+      if (showIntroSkipRef.current === visible) return;
+      showIntroSkipRef.current = visible;
+      setShowIntroSkip(visible);
+    };
+
+    const syncPlayerClock = (force = false) => {
+      if (!video.duration) return;
+      const nowMs = performance.now();
+      if (!force && nowMs - lastPlayerUiUpdateRef.current < 250) return;
+
+      lastPlayerUiUpdateRef.current = nowMs;
+      setCurrentTime(video.currentTime);
+      setProgress((video.currentTime / video.duration) * 100);
+    };
+
     const onTimeUpdate = () => {
       if (!video.duration) return;
-      setCurrentTime(video.currentTime);
-      setDuration(video.duration);
-      setProgress((video.currentTime / video.duration) * 100);
+      syncPlayerClock();
 
       // Check if currently in a known ad segment
       const now = video.currentTime;
@@ -420,15 +447,15 @@ export default function WatchPage() {
 
       // Show skip button when entering ad segment (debounce 30s)
       if (inAdSegment && (now - lastAdSkipRef.current) > 30) {
-        setShowAdSkip(true);
+        setAdSkipVisible(true);
       } else if (!inAdSegment) {
-        setShowAdSkip(false);
+        setAdSkipVisible(false);
       }
 
       if (introSkip && now >= introSkip.start && now < introSkip.end - 1) {
-        setShowIntroSkip(true);
+        setIntroSkipVisible(true);
       } else {
-        setShowIntroSkip(false);
+        setIntroSkipVisible(false);
       }
 
       // Auto-skip if user has enabled auto-skip
@@ -438,7 +465,8 @@ export default function WatchPage() {
             if (now >= ad.start && now <= ad.end) {
               video.currentTime = ad.end + 1;
               lastAdSkipRef.current = ad.end + 1;
-              setShowAdSkip(false);
+              setAdSkipVisible(false);
+              syncPlayerClock(true);
               break;
             }
           }
@@ -446,18 +474,23 @@ export default function WatchPage() {
       }
     };
 
+    const onSeeked = () => syncPlayerClock(true);
+
     const onPlay = () => {
       desiredPlayingRef.current = true;
       setPlaying(true);
+      syncPlayerClock(true);
     };
     const onPause = () => {
       desiredPlayingRef.current = false;
       hlsRef.current?.stopLoad?.();
       setPlaying(false);
+      syncPlayerClock(true);
     };
 
     video.addEventListener("loadedmetadata", syncDuration);
     video.addEventListener("durationchange", syncDuration);
+    video.addEventListener("seeked", onSeeked);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -488,6 +521,7 @@ export default function WatchPage() {
     return () => {
       video.removeEventListener("loadedmetadata", syncDuration);
       video.removeEventListener("durationchange", syncDuration);
+      video.removeEventListener("seeked", onSeeked);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
