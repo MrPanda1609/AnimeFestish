@@ -24,62 +24,6 @@ const KNOWN_AD_TIMESTAMPS = [
   { start: 1495, end: 1525, label: "QC ~25:00" }, // 24:55 - 25:25 (if exists)
 ];
 
-const AD_PATTERNS = /convert|\/v\d+\/[0-9a-f]{20,}\/|adsplay|adserver|preroll|midroll|postroll|\/ads?\//i;
-
-function stripAdSegments(playlist) {
-  const lines = playlist.split("\n");
-  if (lines.length < 10) return playlist;
-
-  // Collect segment URLs and their path structures to detect anomalies
-  const segments = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith("#EXTINF:") && lines[i + 1] && !lines[i + 1].startsWith("#")) {
-      segments.push({ url: lines[i + 1], index: i + 1 });
-    }
-  }
-
-  // Detect the dominant path pattern (most segments share similar path structure)
-  const pathSignatures = new Map();
-  segments.forEach((s) => {
-    // Signature: strip filename, keep directory structure
-    const sig = s.url.replace(/[^/]+$/, "").replace(/\d+/g, "#");
-    pathSignatures.set(sig, (pathSignatures.get(sig) || 0) + 1);
-  });
-
-  // The signature with the most segments is the content; others are likely ads
-  let dominantSig = "";
-  let maxCount = 0;
-  pathSignatures.forEach((count, sig) => {
-    if (count > maxCount) { maxCount = count; dominantSig = sig; }
-  });
-
-  const adSegmentIndexes = new Set();
-  segments.forEach((s) => {
-    const sig = s.url.replace(/[^/]+$/, "").replace(/\d+/g, "#");
-    if (AD_PATTERNS.test(s.url) || (sig !== dominantSig && maxCount > segments.length * 0.5)) {
-      adSegmentIndexes.add(s.index);
-    }
-  });
-
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    // Skip ad segments (and their preceding #EXTINF)
-    if (adSegmentIndexes.has(i)) {
-      // Also remove the #EXTINF line that precedes this segment
-      if (out.length && out[out.length - 1].startsWith("#EXTINF:")) out.pop();
-      // And drop surrounding DISCONTINUITY markers
-      while (out.length && out[out.length - 1] === "#EXT-X-DISCONTINUITY") out.pop();
-      i++;
-      while (i < lines.length && lines[i] === "#EXT-X-DISCONTINUITY") i++;
-      continue;
-    }
-    out.push(lines[i]);
-    i++;
-  }
-  return out.join("\n");
-}
-
 let HlsLib = null;
 async function loadHls() {
   if (!HlsLib) {
@@ -156,6 +100,10 @@ export default function WatchPage() {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const wrapperRef = useRef(null);
+  const progressFillRef = useRef(null);
+  const progressHandleRef = useRef(null);
+  const timeDisplayRef = useRef(null);
+  const brightnessLayerRef = useRef(null);
   const saveTimerRef = useRef(null);
   const controlsTimerRef = useRef(null);
   const movieRef = useRef(null);
@@ -173,8 +121,6 @@ export default function WatchPage() {
   const [activeServer, setActiveServer] = useState(0);
   const [error, setError] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playerError, setPlayerError] = useState(null);
@@ -194,14 +140,29 @@ export default function WatchPage() {
   const osdTimerRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const clickSuppressUntilRef = useRef(0);
-  const [brightness, setBrightness] = useState(1);
-  const [seekPreview, setSeekPreview] = useState(null);
+  const brightnessRef = useRef(1);
   const [osd, setOsd] = useState(null);
 
   movieRef.current = movie;
   currentEpRef.current = currentEp;
 
   const epDisplay = currentEp ? cleanEpDisplayName(currentEp.name) : ep;
+
+  const renderPlayerClock = useCallback((time, total) => {
+    const safeTotal = Number.isFinite(total) && total > 0 ? total : 0;
+    const safeTime = Number.isFinite(time) ? Math.max(0, time) : 0;
+    const pct = safeTotal ? Math.min(100, (safeTime / safeTotal) * 100) : 0;
+
+    if (progressFillRef.current) {
+      progressFillRef.current.style.width = `${pct}%`;
+    }
+    if (progressHandleRef.current) {
+      progressHandleRef.current.style.left = `${pct}%`;
+    }
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = `${fmtTime(safeTime)} / ${fmtTime(safeTotal)}`;
+    }
+  }, []);
 
   useSEO(
     movie
@@ -248,28 +209,9 @@ export default function WatchPage() {
       }
 
       const hls = new Hls({
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-        enableWorker: true,
-        lowLatencyMode: false,
-        fragLoadingTimeOut: 20000,
-        manifestLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 15000,
         xhrSetup: (xhr, xhrUrl) => {
           if (isKeyUrl(xhrUrl)) {
             xhr.open("GET", getProxiedKeyUrl(xhrUrl), true);
-          }
-        },
-        pLoader: class extends Hls.DefaultConfig.loader {
-          load(context, config, callbacks) {
-            const origSuccess = callbacks.onSuccess;
-            callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
-              if (typeof response.data === "string" && response.data.includes("#EXTINF")) {
-                response.data = stripAdSegments(response.data);
-              }
-              origSuccess(response, stats, ctx, networkDetails);
-            };
-            super.load(context, config, callbacks);
           }
         },
       });
@@ -321,8 +263,6 @@ export default function WatchPage() {
     setCurrentEp(null);
     setError(null);
     setPlayerError(null);
-    setProgress(0);
-    setCurrentTime(0);
     setDuration(0);
     setShowAdSkip(false);
     setIntroSkip(null);
@@ -330,6 +270,9 @@ export default function WatchPage() {
     lastPlayerUiUpdateRef.current = 0;
     showAdSkipRef.current = false;
     showIntroSkipRef.current = false;
+    brightnessRef.current = 1;
+    if (brightnessLayerRef.current) brightnessLayerRef.current.style.opacity = "0";
+    renderPlayerClock(0, 0);
 
     fetchAnimeDetail(slug)
       .then((resp) => {
@@ -376,7 +319,7 @@ export default function WatchPage() {
     return () => {
       destroyHls();
     };
-  }, [slug, ep, playM3u8, destroyHls]);
+  }, [slug, ep, playM3u8, destroyHls, renderPlayerClock]);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,7 +349,11 @@ export default function WatchPage() {
 
     const syncDuration = () => {
       if (!video.duration) return;
-      setDuration(video.duration);
+      setDuration((prev) => {
+        if (Math.abs(prev - video.duration) < 0.2) return prev;
+        return video.duration;
+      });
+      renderPlayerClock(video.currentTime, video.duration);
     };
 
     const setAdSkipVisible = (visible) => {
@@ -427,8 +374,7 @@ export default function WatchPage() {
       if (!force && nowMs - lastPlayerUiUpdateRef.current < 250) return;
 
       lastPlayerUiUpdateRef.current = nowMs;
-      setCurrentTime(video.currentTime);
-      setProgress((video.currentTime / video.duration) * 100);
+      renderPlayerClock(video.currentTime, video.duration);
     };
 
     const onTimeUpdate = () => {
@@ -483,7 +429,6 @@ export default function WatchPage() {
     };
     const onPause = () => {
       desiredPlayingRef.current = false;
-      hlsRef.current?.stopLoad?.();
       setPlaying(false);
       syncPlayerClock(true);
     };
@@ -527,7 +472,7 @@ export default function WatchPage() {
       video.removeEventListener("pause", onPause);
       clearInterval(saveTimerRef.current);
     };
-  }, [slug, ep, autoSkipAds, introSkip]);
+  }, [slug, ep, autoSkipAds, introSkip, renderPlayerClock]);
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
@@ -543,33 +488,39 @@ export default function WatchPage() {
 
     if (video.paused) {
       desiredPlayingRef.current = true;
-      hlsRef.current?.startLoad?.();
       video.play().catch(() => {});
     } else {
       desiredPlayingRef.current = false;
       video.pause();
-      hlsRef.current?.stopLoad?.();
       setPlaying(false);
       setControlsVisible(true);
     }
   }, []);
 
-  const seekTo = (pct) => {
+  const seekTo = useCallback((pct) => {
     const video = videoRef.current;
     if (video && video.duration) {
       video.currentTime = Math.max(0, Math.min(1, pct)) * video.duration;
+      renderPlayerClock(video.currentTime, video.duration);
     }
-  };
+  }, [renderPlayerClock]);
 
-  const seekBy = (sec) => {
+  const seekBy = useCallback((sec) => {
     const video = videoRef.current;
     if (video) {
       video.currentTime = Math.max(
         0,
         Math.min(video.duration || 0, video.currentTime + sec)
       );
+      renderPlayerClock(video.currentTime, video.duration || 0);
     }
-  };
+  }, [renderPlayerClock]);
+
+  const seekFromClientX = useCallback((target, clientX) => {
+    const rect = target.getBoundingClientRect();
+    if (!rect.width) return;
+    seekTo((clientX - rect.left) / rect.width);
+  }, [seekTo]);
 
   const toggleFullscreen = async () => {
     const wrapper = wrapperRef.current;
@@ -661,7 +612,7 @@ export default function WatchPage() {
       startVideoTime: video.currentTime || 0,
       previewTime: null,
       startVolume: video.muted ? 0 : video.volume,
-      startBrightness: brightness,
+      startBrightness: brightnessRef.current,
       longPressActive: false,
     };
 
@@ -676,7 +627,7 @@ export default function WatchPage() {
         showGestureOsd({ type: 'speed', value: 2, x: 75 }, 1000);
       }, 450);
     }
-  }, [brightness, showGestureOsd]);
+  }, [showGestureOsd]);
 
   const handleTouchMove = useCallback((e) => {
     const g = gestureRef.current;
@@ -704,9 +655,7 @@ export default function WatchPage() {
       const deltaSeconds = (dx / rect.width) * 90;
       const preview = Math.max(0, Math.min(video.duration, g.startVideoTime + deltaSeconds));
       g.previewTime = preview;
-      setSeekPreview(preview);
-      setCurrentTime(preview);
-      setProgress((preview / video.duration) * 100);
+      renderPlayerClock(preview, video.duration);
       setControlsVisible(true);
       setOsd({ type: 'seek', value: preview, delta: Math.round(preview - g.startVideoTime), x: 50 });
     } else if (g.mode === 'volume') {
@@ -723,11 +672,14 @@ export default function WatchPage() {
       e.preventDefault();
       const rect = wrapper.getBoundingClientRect();
       const nextBrightness = Math.max(0.25, Math.min(1, g.startBrightness - dy / rect.height));
-      setBrightness(nextBrightness);
+      brightnessRef.current = nextBrightness;
+      if (brightnessLayerRef.current) {
+        brightnessLayerRef.current.style.opacity = String(Math.max(0, 1 - nextBrightness));
+      }
       setControlsVisible(true);
       setOsd({ type: 'brightness', value: Math.round(nextBrightness * 100), x: 25 });
     }
-  }, []);
+  }, [renderPlayerClock]);
 
   const handleTouchEnd = useCallback((e) => {
     const g = gestureRef.current;
@@ -747,8 +699,8 @@ export default function WatchPage() {
     if (g.mode === 'seek') {
       if (video && g.previewTime != null) {
         video.currentTime = g.previewTime;
+        renderPlayerClock(video.currentTime, video.duration || 0);
       }
-      setSeekPreview(null);
       showControls();
       setOsd(null);
       gestureRef.current = null;
@@ -787,7 +739,7 @@ export default function WatchPage() {
     }
 
     gestureRef.current = null;
-  }, [hideOrShowControls, seekBy, showControls, showGestureOsd]);
+  }, [hideOrShowControls, renderPlayerClock, seekBy, showControls, showGestureOsd]);
 
   // ...
 
@@ -903,7 +855,7 @@ export default function WatchPage() {
         </div>
       ) : (
         <div
-          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"}`}
+          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : ""}`}
           ref={wrapperRef}
           onMouseMove={() => {
             if (!window.matchMedia?.('(hover: none)').matches) showControls();
@@ -914,7 +866,7 @@ export default function WatchPage() {
         >
           {/* Video rendered FIRST so touch layer sits above it */}
           <video ref={videoRef} className="player-video" playsInline />
-          <div className="player-brightness-layer" style={{ opacity: Math.max(0, 1 - brightness) }} />
+          <div ref={brightnessLayerRef} className="player-brightness-layer" />
 
           {/* Touch capture layer — sits above video, below controls. Handles ALL gestures */}
           <div
@@ -1068,29 +1020,36 @@ export default function WatchPage() {
           <div className="player-bottom-controls">
             <div
               className="player-progress"
-              onClick={(e) => {
+              onPointerDown={(e) => {
                 e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                seekTo((e.clientX - rect.left) / rect.width);
+                e.preventDefault();
+                e.currentTarget.setPointerCapture?.(e.pointerId);
+                seekFromClientX(e.currentTarget, e.clientX);
+                showControls();
               }}
-              onTouchStart={(e) => {
+              onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture?.(e.pointerId)) return;
                 e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                seekTo(Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width)));
+                e.preventDefault();
+                seekFromClientX(e.currentTarget, e.clientX);
               }}
-              onTouchMove={(e) => {
+              onPointerUp={(e) => {
                 e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                seekTo(Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width)));
+                e.currentTarget.releasePointerCapture?.(e.pointerId);
+                seekFromClientX(e.currentTarget, e.clientX);
+                showControls();
+              }}
+              onPointerCancel={(e) => {
+                e.currentTarget.releasePointerCapture?.(e.pointerId);
               }}
             >
               <div
                 className="player-progress-fill"
-                style={{ width: `${progress}%` }}
+                ref={progressFillRef}
               />
               <div
                 className="player-progress-handle"
-                style={{ left: `${progress}%` }}
+                ref={progressHandleRef}
               />
             </div>
             <div className="player-controls-row">
@@ -1130,9 +1089,7 @@ export default function WatchPage() {
                     }}
                   />
                 </div>
-                <div className="player-time">
-                  {fmtTime(currentTime)} / {fmtTime(duration)}
-                </div>
+                <div className="player-time" ref={timeDisplayRef} />
               </div>
               <div className="player-controls-right">
                 <button

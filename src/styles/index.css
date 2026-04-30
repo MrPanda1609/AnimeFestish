@@ -1243,6 +1243,7 @@ input {
     0 0 0 1px rgba(255, 45, 120, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
   transition: box-shadow 0.5s var(--ease-premium), border-color 0.5s var(--ease-premium);
+  contain: layout paint;
 }
 
 /* Ambient glow behind player */
@@ -1277,10 +1278,13 @@ input {
 }
 
 .player-wrapper video {
+  display: block;
   width: 100%;
   height: 100%;
   background: #000;
   outline: none;
+  object-fit: contain;
+  transform: translateZ(0);
 }
 
 .player-brightness-layer {
@@ -1288,8 +1292,10 @@ input {
   inset: 0;
   z-index: 9;
   background: #000;
+  opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s linear;
+  will-change: opacity;
 }
 
 /* --- Touch Capture Layer --- */
@@ -1315,6 +1321,8 @@ input {
   transition: height 0.2s, opacity 0.35s;
   opacity: 0;
   pointer-events: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .controls-visible .player-progress {
@@ -1376,6 +1384,10 @@ input {
 /* Auto-hide controls: smooth cursor hide */
 .player-wrapper.controls-hidden {
   cursor: none;
+}
+
+.player-wrapper.is-playing.controls-hidden::after {
+  display: none;
 }
 
 /* Fullscreen player fills entire screen */
@@ -1623,6 +1635,11 @@ input {
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, -50%) scale(1);
+}
+
+.controls-hidden .player-center-btn,
+.controls-hidden .player-fs-btn {
+  visibility: hidden;
 }
 
 .player-center-btn:active {
