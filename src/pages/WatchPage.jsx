@@ -20,8 +20,7 @@ function fmtTime(s) {
 // Known ad injection timestamps (in seconds) from upstream providers
 // Format: { start, end, label }
 const KNOWN_AD_TIMESTAMPS = [
-  { start: 895, end: 925, label: "QC ~15:00" },  // 14:55 - 15:25
-  { start: 1495, end: 1525, label: "QC ~25:00" }, // 24:55 - 25:25 (if exists)
+  { start: 900, end: 960, label: "QC 15:00" },
 ];
 
 let HlsLib = null;

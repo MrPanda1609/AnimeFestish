@@ -1,30 +1,31 @@
 const ANISKIP_BASE = "https://api.aniskip.com/v2";
+const FAIRY_TAIL_INTRO_END = 110;
 
 const FAIRY_TAIL_CONFIG = {
   "hoi-phap-su-phan-1": {
     malId: 6702,
     episodeOffset: 0,
-    fallback: { start: 0, end: 90 },
+    fallback: { start: 0, end: FAIRY_TAIL_INTRO_END },
   },
   "hoi-phap-su-phan-2": {
     malId: 22043,
     episodeOffset: 0,
-    fallback: { start: 26.033, end: 116.033 },
+    fallback: { start: 26.033, end: 26.033 + FAIRY_TAIL_INTRO_END },
   },
   "hoi-phap-su-phan-3": {
     malId: 22043,
     episodeOffset: 51,
-    fallback: { start: 0, end: 90 },
+    fallback: { start: 0, end: FAIRY_TAIL_INTRO_END },
   },
   "hoi-phap-su-phan-4": {
     malId: 35972,
     episodeOffset: 0,
-    fallback: { start: 93.035, end: 183.035 },
+    fallback: { start: 93.035, end: 93.035 + FAIRY_TAIL_INTRO_END },
   },
   "hoi-phap-su-nhiem-vu-100-nam": {
     malId: 49785,
     episodeOffset: 0,
-    fallback: { start: 5.739, end: 95.739 },
+    fallback: { start: 5.739, end: 5.739 + FAIRY_TAIL_INTRO_END },
   },
 };
 
