@@ -21,6 +21,7 @@ function fmtTime(s) {
 // Format: { start, end, label }
 const KNOWN_AD_TIMESTAMPS = [
   { start: 900, end: 960, label: "QC 15:00" },
+  { start: 930, end: 990, label: "QC 15:30" },
 ];
 
 let HlsLib = null;
@@ -43,6 +44,18 @@ function isKeyUrl(url) {
     lower.includes("license") ||
     /\/keys?\//i.test(url)
   );
+}
+
+function getActiveAdSegment(time) {
+  return KNOWN_AD_TIMESTAMPS.find(
+    (ad) => time >= ad.start && time < ad.end
+  ) || null;
+}
+
+function isIosDevice() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 /**
@@ -128,6 +141,7 @@ export default function WatchPage() {
   const [showAdSkip, setShowAdSkip] = useState(false);
   const [introSkip, setIntroSkip] = useState(null);
   const [showIntroSkip, setShowIntroSkip] = useState(false);
+  const [iosLandscapeFullscreen, setIosLandscapeFullscreen] = useState(false);
   const lastAdSkipRef = useRef(0);
   const [autoSkipAds, setAutoSkipAds] = useState(() => {
     return localStorage.getItem('autoSkipAds') === 'true';
@@ -267,6 +281,7 @@ export default function WatchPage() {
     setIntroSkip(null);
     setShowIntroSkip(false);
     lastPlayerUiUpdateRef.current = 0;
+    lastAdSkipRef.current = 0;
     showAdSkipRef.current = false;
     showIntroSkipRef.current = false;
     brightnessRef.current = 1;
@@ -380,20 +395,12 @@ export default function WatchPage() {
       if (!video.duration) return;
       syncPlayerClock();
 
-      // Check if currently in a known ad segment
       const now = video.currentTime;
-      let inAdSegment = false;
-      for (const ad of KNOWN_AD_TIMESTAMPS) {
-        if (now >= ad.start && now <= ad.end) {
-          inAdSegment = true;
-          break;
-        }
-      }
+      const activeAd = getActiveAdSegment(now);
 
-      // Show skip button when entering ad segment (debounce 30s)
-      if (inAdSegment && (now - lastAdSkipRef.current) > 30) {
+      if (activeAd) {
         setAdSkipVisible(true);
-      } else if (!inAdSegment) {
+      } else {
         setAdSkipVisible(false);
       }
 
@@ -403,19 +410,12 @@ export default function WatchPage() {
         setIntroSkipVisible(false);
       }
 
-      // Auto-skip if user has enabled auto-skip
-      if (inAdSegment && autoSkipAds) {
-        if ((now - lastAdSkipRef.current) > 30) {
-          for (const ad of KNOWN_AD_TIMESTAMPS) {
-            if (now >= ad.start && now <= ad.end) {
-              video.currentTime = ad.end + 1;
-              lastAdSkipRef.current = ad.end + 1;
-              setAdSkipVisible(false);
-              syncPlayerClock(true);
-              break;
-            }
-          }
-        }
+      if (activeAd && autoSkipAds && now >= lastAdSkipRef.current) {
+        const targetTime = Math.min(video.duration, activeAd.end + 1);
+        video.currentTime = targetTime;
+        lastAdSkipRef.current = targetTime;
+        setAdSkipVisible(false);
+        syncPlayerClock(true);
       }
     };
 
@@ -521,10 +521,26 @@ export default function WatchPage() {
     seekTo((clientX - rect.left) / rect.width);
   }, [seekTo]);
 
+  const exitIosLandscapeFullscreen = useCallback(() => {
+    setIosLandscapeFullscreen(false);
+    document.body.classList.remove("ios-player-lock");
+  }, []);
+
   const toggleFullscreen = async () => {
     const wrapper = wrapperRef.current;
     const video = videoRef.current;
     if (!wrapper) return;
+
+    if (iosLandscapeFullscreen) {
+      exitIosLandscapeFullscreen();
+      return;
+    }
+
+    if (isIosDevice()) {
+      document.body.classList.add("ios-player-lock");
+      setIosLandscapeFullscreen(true);
+      return;
+    }
 
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       // Unlock orientation when exiting fullscreen
@@ -774,6 +790,17 @@ export default function WatchPage() {
   }, [nextEp, slug, navigate]);
 
   useEffect(() => {
+    if (!iosLandscapeFullscreen) return;
+
+    const onKey = (e) => {
+      if (e.key === "Escape") exitIosLandscapeFullscreen();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [iosLandscapeFullscreen, exitIosLandscapeFullscreen]);
+
+  useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
         return;
@@ -807,6 +834,12 @@ export default function WatchPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
+
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("ios-player-lock");
+    };
+  }, []);
 
   // Auto-lock landscape when entering fullscreen on mobile
   useEffect(() => {
@@ -854,7 +887,7 @@ export default function WatchPage() {
         </div>
       ) : (
         <div
-          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : ""}`}
+          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : ""} ${iosLandscapeFullscreen ? "ios-landscape-fullscreen" : ""}`}
           ref={wrapperRef}
           onMouseMove={() => {
             if (!window.matchMedia?.('(hover: none)').matches) showControls();
@@ -956,15 +989,12 @@ export default function WatchPage() {
                 e.stopPropagation();
                 const video = videoRef.current;
                 if (!video) return;
-                const now = video.currentTime;
-                for (const ad of KNOWN_AD_TIMESTAMPS) {
-                  if (now >= ad.start && now <= ad.end) {
-                    video.currentTime = ad.end + 1;
-                    lastAdSkipRef.current = ad.end + 1;
-                    setShowAdSkip(false);
-                    break;
-                  }
-                }
+                const activeAd = getActiveAdSegment(video.currentTime);
+                if (!activeAd) return;
+                const targetTime = Math.min(video.duration, activeAd.end + 1);
+                video.currentTime = targetTime;
+                lastAdSkipRef.current = targetTime;
+                setShowAdSkip(false);
               }}
               title="Bỏ qua quảng cáo"
             >
