@@ -17,12 +17,13 @@ function fmtTime(s) {
   return `${m}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-// Known ad injection timestamps (in seconds) from upstream providers
-// Format: { start, end, label }
+// Upstream randomly injects one 30s ad at either 15:00 or 15:30.
 const KNOWN_AD_TIMESTAMPS = [
-  { start: 900, end: 960, label: "QC 15:00" },
-  { start: 930, end: 990, label: "QC 15:30" },
+  { start: 900, end: 930 },
+  { start: 930, end: 960 },
 ];
+
+const AD_SKIP_SECONDS = 30;
 
 let HlsLib = null;
 async function loadHls() {
@@ -404,7 +405,7 @@ export default function WatchPage() {
       }
 
       if (activeAd && autoSkipAds && now >= lastAdSkipRef.current) {
-        const targetTime = Math.min(video.duration, activeAd.end + 1);
+        const targetTime = Math.min(video.duration, now + AD_SKIP_SECONDS);
         video.currentTime = targetTime;
         lastAdSkipRef.current = targetTime;
         setAdSkipVisible(false);
@@ -768,7 +769,14 @@ export default function WatchPage() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+      const target = e.target;
+      const isTypingTarget =
+        target instanceof HTMLElement &&
+        (target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          (target.tagName === "INPUT" && target.type !== "range"));
+
+      if (isTypingTarget)
         return;
       const video = videoRef.current;
       if (!video) return;
@@ -799,7 +807,7 @@ export default function WatchPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay]);
+  }, [seekBy, toggleFullscreen, togglePlay]);
 
   // Auto-lock landscape when entering fullscreen on mobile
   useEffect(() => {
@@ -951,7 +959,7 @@ export default function WatchPage() {
                 if (!video) return;
                 const activeAd = getActiveAdSegment(video.currentTime);
                 if (!activeAd) return;
-                const targetTime = Math.min(video.duration, activeAd.end + 1);
+                const targetTime = Math.min(video.duration, video.currentTime + AD_SKIP_SECONDS);
                 video.currentTime = targetTime;
                 lastAdSkipRef.current = targetTime;
                 setShowAdSkip(false);
