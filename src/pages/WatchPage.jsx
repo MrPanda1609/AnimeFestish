@@ -24,6 +24,30 @@ const KNOWN_AD_TIMESTAMPS = [
 ];
 
 const AD_SKIP_SECONDS = 30;
+const PLAYER_VOLUME_KEY = "playerVolume";
+const PLAYER_MUTED_KEY = "playerMuted";
+
+function getSavedPlayerAudio() {
+  const savedVolume = Number(localStorage.getItem(PLAYER_VOLUME_KEY));
+  const volume = Number.isFinite(savedVolume)
+    ? Math.max(0, Math.min(1, savedVolume))
+    : 1;
+
+  return {
+    volume,
+    muted: localStorage.getItem(PLAYER_MUTED_KEY) === "true",
+  };
+}
+
+function savePlayerAudio(video) {
+  localStorage.setItem(PLAYER_VOLUME_KEY, String(video.volume));
+  localStorage.setItem(PLAYER_MUTED_KEY, String(video.muted));
+}
+
+function applyPlayerAudio(video, audio) {
+  video.volume = audio.volume;
+  video.muted = audio.muted;
+}
 
 let HlsLib = null;
 async function loadHls() {
@@ -131,8 +155,8 @@ export default function WatchPage() {
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playerError, setPlayerError] = useState(null);
-  const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(() => getSavedPlayerAudio().muted);
+  const [volume, setVolume] = useState(() => getSavedPlayerAudio().volume);
   const [showAdSkip, setShowAdSkip] = useState(false);
   const [introSkip, setIntroSkip] = useState(null);
   const [showIntroSkip, setShowIntroSkip] = useState(false);
@@ -201,6 +225,7 @@ export default function WatchPage() {
       destroyHls();
       desiredPlayingRef.current = true;
       setPlayerError(null);
+      applyPlayerAudio(video, getSavedPlayerAudio());
 
       const cleanUrl = getCleanM3u8Url(url);
       const Hls = await loadHls();
@@ -425,6 +450,14 @@ export default function WatchPage() {
       setPlaying(false);
       syncPlayerClock(true);
     };
+    const onVolumeChange = () => {
+      setVolume(video.volume);
+      setMuted(video.muted);
+      savePlayerAudio(video);
+    };
+
+    applyPlayerAudio(video, getSavedPlayerAudio());
+    onVolumeChange();
 
     video.addEventListener("loadedmetadata", syncDuration);
     video.addEventListener("durationchange", syncDuration);
@@ -432,6 +465,7 @@ export default function WatchPage() {
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
+    video.addEventListener("volumechange", onVolumeChange);
 
     saveTimerRef.current = setInterval(() => {
       const m = movieRef.current;
@@ -463,6 +497,7 @@ export default function WatchPage() {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
+      video.removeEventListener("volumechange", onVolumeChange);
       clearInterval(saveTimerRef.current);
     };
   }, [slug, ep, autoSkipAds, introSkip, renderPlayerClock]);
@@ -1056,7 +1091,7 @@ export default function WatchPage() {
                     className="player-ctrl-btn"
                     onClick={() => {
                       const v = videoRef.current;
-                      if (v) { v.muted = !v.muted; setMuted(v.muted); }
+                      if (v) v.muted = !v.muted;
                     }}
                     title={muted ? "Bật tiếng" : "Tắt tiếng"}
                   >
@@ -1081,8 +1116,6 @@ export default function WatchPage() {
                       const v = videoRef.current;
                       const val = parseFloat(e.target.value);
                       if (v) { v.volume = val; v.muted = val === 0; }
-                      setVolume(val);
-                      setMuted(val === 0);
                     }}
                   />
                 </div>
