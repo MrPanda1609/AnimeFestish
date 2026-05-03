@@ -52,12 +52,6 @@ function getActiveAdSegment(time) {
   ) || null;
 }
 
-function isIosDevice() {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
 /**
  * Normalize an episode identifier for comparison.
  * Strips "tap-", "tap ", "tập ", leading zeros, and lowercases.
@@ -141,7 +135,6 @@ export default function WatchPage() {
   const [showAdSkip, setShowAdSkip] = useState(false);
   const [introSkip, setIntroSkip] = useState(null);
   const [showIntroSkip, setShowIntroSkip] = useState(false);
-  const [iosLandscapeFullscreen, setIosLandscapeFullscreen] = useState(false);
   const lastAdSkipRef = useRef(0);
   const [autoSkipAds, setAutoSkipAds] = useState(() => {
     return localStorage.getItem('autoSkipAds') === 'true';
@@ -521,26 +514,10 @@ export default function WatchPage() {
     seekTo((clientX - rect.left) / rect.width);
   }, [seekTo]);
 
-  const exitIosLandscapeFullscreen = useCallback(() => {
-    setIosLandscapeFullscreen(false);
-    document.body.classList.remove("ios-player-lock");
-  }, []);
-
   const toggleFullscreen = async () => {
     const wrapper = wrapperRef.current;
     const video = videoRef.current;
     if (!wrapper) return;
-
-    if (iosLandscapeFullscreen) {
-      exitIosLandscapeFullscreen();
-      return;
-    }
-
-    if (isIosDevice()) {
-      document.body.classList.add("ios-player-lock");
-      setIosLandscapeFullscreen(true);
-      return;
-    }
 
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       // Unlock orientation when exiting fullscreen
@@ -790,17 +767,6 @@ export default function WatchPage() {
   }, [nextEp, slug, navigate]);
 
   useEffect(() => {
-    if (!iosLandscapeFullscreen) return;
-
-    const onKey = (e) => {
-      if (e.key === "Escape") exitIosLandscapeFullscreen();
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [iosLandscapeFullscreen, exitIosLandscapeFullscreen]);
-
-  useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
         return;
@@ -834,12 +800,6 @@ export default function WatchPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
-
-  useEffect(() => {
-    return () => {
-      document.body.classList.remove("ios-player-lock");
-    };
-  }, []);
 
   // Auto-lock landscape when entering fullscreen on mobile
   useEffect(() => {
@@ -887,7 +847,7 @@ export default function WatchPage() {
         </div>
       ) : (
         <div
-          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : ""} ${iosLandscapeFullscreen ? "ios-landscape-fullscreen" : ""}`}
+          className={`player-wrapper ${controlsVisible ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : ""}`}
           ref={wrapperRef}
           onMouseMove={() => {
             if (!window.matchMedia?.('(hover: none)').matches) showControls();
