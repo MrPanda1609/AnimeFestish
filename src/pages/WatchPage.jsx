@@ -829,6 +829,20 @@ export default function WatchPage() {
           e.preventDefault();
           seekBy(10);
           break;
+        case "ArrowUp": {
+          e.preventDefault();
+          const nextVolume = Math.min(1, Math.round((video.volume + 0.05) * 100) / 100);
+          video.volume = nextVolume;
+          video.muted = nextVolume === 0;
+          break;
+        }
+        case "ArrowDown": {
+          e.preventDefault();
+          const nextVolume = Math.max(0, Math.round((video.volume - 0.05) * 100) / 100);
+          video.volume = nextVolume;
+          video.muted = nextVolume === 0;
+          break;
+        }
         case "f":
           e.preventDefault();
           toggleFullscreen();
