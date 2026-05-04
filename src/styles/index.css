@@ -1488,8 +1488,13 @@ input {
 }
 
 .player-osd-speed {
+  min-width: 52px;
+  padding: 9px 13px;
   border-color: rgba(255, 45, 120, 0.26);
   background: rgba(20, 8, 18, 0.78);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
 }
 
 .player-osd-volume,

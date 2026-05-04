@@ -656,7 +656,7 @@ export default function WatchPage() {
       g.longPressActive = true;
       v.playbackRate = 2;
       setControlsVisible(true);
-      showGestureOsd({ type: 'speed', value: 2, x: g.side === 'left' ? 25 : 75 }, null);
+      showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
     }, 450);
   }, [showGestureOsd]);
 
@@ -721,7 +721,7 @@ export default function WatchPage() {
 
     if (g.mode === 'speed') {
       if (video) video.playbackRate = 1;
-      showGestureOsd({ type: 'speed', value: 1, x: 75 }, 350);
+      showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
       gestureRef.current = null;
       clickSuppressUntilRef.current = Date.now() + 900;
       return;
@@ -782,7 +782,7 @@ export default function WatchPage() {
 
     if (videoRef.current) videoRef.current.playbackRate = 1;
     if (g?.mode === 'speed') {
-      showGestureOsd({ type: 'speed', value: 1, x: g.side === 'left' ? 25 : 75 }, 350);
+      showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
     }
 
     gestureRef.current = null;
@@ -832,7 +832,7 @@ export default function WatchPage() {
       const video = videoRef.current;
       if (video && video.playbackRate !== 1) {
         video.playbackRate = 1;
-        showGestureOsd({ type: 'speed', value: 1, x: key === 'ArrowLeft' ? 25 : 75 }, 350);
+        showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
       }
     };
 
@@ -864,12 +864,12 @@ export default function WatchPage() {
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
               videoRef.current.playbackRate = 2;
-              showGestureOsd({ type: 'speed', value: 2, x: 25 }, null);
+              showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
             }, 260);
           } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
             clearTimeout(keyHoldTimerRef.current);
             video.playbackRate = 2;
-            showGestureOsd({ type: 'speed', value: 2, x: 25 }, null);
+            showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
           }
           break;
         }
@@ -883,12 +883,12 @@ export default function WatchPage() {
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
               videoRef.current.playbackRate = 2;
-              showGestureOsd({ type: 'speed', value: 2, x: 75 }, null);
+              showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
             }, 260);
           } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
             clearTimeout(keyHoldTimerRef.current);
             video.playbackRate = 2;
-            showGestureOsd({ type: 'speed', value: 2, x: 75 }, null);
+            showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
           }
           break;
         }
@@ -1060,14 +1060,7 @@ export default function WatchPage() {
                 </>
               )}
               {osd.type === 'speed' && (
-                <>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 4 15 12 5 20 5 4" />
-                    <polygon points="13 4 23 12 13 20 13 4" />
-                  </svg>
-                  <span>{osd.value}x</span>
-                  <span className="player-osd-sub">{osd.value > 1 ? 'Đang tua nhanh' : 'Tốc độ thường'}</span>
-                </>
+                <span>X{osd.value}</span>
               )}
             </div>
           )}
