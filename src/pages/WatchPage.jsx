@@ -552,7 +552,7 @@ export default function WatchPage() {
     seekTo((clientX - rect.left) / rect.width);
   }, [seekTo]);
 
-  const toggleFullscreen = async () => {
+  const toggleFullscreen = useCallback(async () => {
     const wrapper = wrapperRef.current;
     const video = videoRef.current;
     if (!wrapper) return;
@@ -595,7 +595,7 @@ export default function WatchPage() {
         }
       }
     }
-  };
+  }, []);
 
   const hideOrShowControls = useCallback(() => {
     setControlsVisible((visible) => {
@@ -712,7 +712,7 @@ export default function WatchPage() {
     }
   }, [renderPlayerClock]);
 
-  const handleTouchEnd = useCallback((e) => {
+  const finishTouchGesture = useCallback((e) => {
     const g = gestureRef.current;
     if (!g) return;
 
@@ -771,6 +771,23 @@ export default function WatchPage() {
 
     gestureRef.current = null;
   }, [hideOrShowControls, renderPlayerClock, seekBy, showControls, showGestureOsd]);
+
+  const handleTouchEnd = useCallback((e) => {
+    finishTouchGesture(e);
+  }, [finishTouchGesture]);
+
+  const handleTouchCancel = useCallback(() => {
+    const g = gestureRef.current;
+    clearTimeout(longPressTimerRef.current);
+
+    if (videoRef.current) videoRef.current.playbackRate = 1;
+    if (g?.mode === 'speed') {
+      showGestureOsd({ type: 'speed', value: 1, x: g.side === 'left' ? 25 : 75 }, 350);
+    }
+
+    gestureRef.current = null;
+    clickSuppressUntilRef.current = Date.now() + 900;
+  }, [showGestureOsd]);
 
   // ...
 
@@ -849,6 +866,10 @@ export default function WatchPage() {
               videoRef.current.playbackRate = 2;
               showGestureOsd({ type: 'speed', value: 2, x: 25 }, null);
             }, 260);
+          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
+            clearTimeout(keyHoldTimerRef.current);
+            video.playbackRate = 2;
+            showGestureOsd({ type: 'speed', value: 2, x: 25 }, null);
           }
           break;
         }
@@ -864,6 +885,10 @@ export default function WatchPage() {
               videoRef.current.playbackRate = 2;
               showGestureOsd({ type: 'speed', value: 2, x: 75 }, null);
             }, 260);
+          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
+            clearTimeout(keyHoldTimerRef.current);
+            video.playbackRate = 2;
+            showGestureOsd({ type: 'speed', value: 2, x: 75 }, null);
           }
           break;
         }
@@ -978,6 +1003,7 @@ export default function WatchPage() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
           />
 
           {/* Player gesture and keyboard feedback */}
