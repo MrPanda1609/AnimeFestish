@@ -144,6 +144,8 @@ export default function WatchPage() {
   const lastPlayerUiUpdateRef = useRef(0);
   const showAdSkipRef = useRef(false);
   const showIntroSkipRef = useRef(false);
+  const keyHoldTimerRef = useRef(null);
+  const activeSpeedKeyRef = useRef(null);
 
   const [movie, setMovie] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -610,12 +612,14 @@ export default function WatchPage() {
   const showGestureOsd = useCallback((next, delay = 700) => {
     clearTimeout(osdTimerRef.current);
     setOsd(next);
-    osdTimerRef.current = setTimeout(() => setOsd(null), delay);
+    if (delay != null) {
+      osdTimerRef.current = setTimeout(() => setOsd(null), delay);
+    }
   }, []);
 
   // --- Cốc Cốc-like Mobile Touch Gestures ---
-  // Tap: toggle UI only. Double tap: left -10s, right +10s. Horizontal drag: preview seek, commit on release.
-  // Vertical drag: left brightness overlay, right volume. Long press right: 2x speed.
+  // Tap: toggle UI only. Double tap: left -5s, right +5s. Horizontal drag: preview seek, commit on release.
+  // Vertical drag: left brightness overlay, right volume. Long press: temporary 2x speed.
   const handleTouchStart = useCallback((e) => {
     if (e.target.closest('.player-bottom-controls') ||
         e.target.closest('button') ||
@@ -644,17 +648,16 @@ export default function WatchPage() {
       longPressActive: false,
     };
 
-    if (side === 'right') {
-      longPressTimerRef.current = setTimeout(() => {
-        const g = gestureRef.current;
-        const v = videoRef.current;
-        if (!g || !v || g.mode) return;
-        g.mode = 'speed';
-        g.longPressActive = true;
-        v.playbackRate = 2;
-        showGestureOsd({ type: 'speed', value: 2, x: 75 }, 1000);
-      }, 450);
-    }
+    longPressTimerRef.current = setTimeout(() => {
+      const g = gestureRef.current;
+      const v = videoRef.current;
+      if (!g || !v || g.mode) return;
+      g.mode = 'speed';
+      g.longPressActive = true;
+      v.playbackRate = 2;
+      setControlsVisible(true);
+      showGestureOsd({ type: 'speed', value: 2, x: g.side === 'left' ? 25 : 75 }, null);
+    }, 450);
   }, [showGestureOsd]);
 
   const handleTouchMove = useCallback((e) => {
@@ -753,7 +756,7 @@ export default function WatchPage() {
       const now = Date.now();
       const last = lastTapRef.current;
       if (last.side === g.side && now - last.time < 350) {
-        const delta = g.side === 'left' ? -10 : 10;
+        const delta = g.side === 'left' ? -5 : 5;
         const total = (last.total || 0) + delta;
         lastTapRef.current = { time: now, side: g.side, total };
         clickSuppressUntilRef.current = now + 900;
@@ -803,6 +806,19 @@ export default function WatchPage() {
   }, [nextEp, slug, navigate]);
 
   useEffect(() => {
+    const endKeyboardSpeed = (key) => {
+      if (key !== activeSpeedKeyRef.current) return;
+      clearTimeout(keyHoldTimerRef.current);
+      keyHoldTimerRef.current = null;
+      activeSpeedKeyRef.current = null;
+
+      const video = videoRef.current;
+      if (video && video.playbackRate !== 1) {
+        video.playbackRate = 1;
+        showGestureOsd({ type: 'speed', value: 1, x: key === 'ArrowLeft' ? 25 : 75 }, 350);
+      }
+    };
+
     const onKey = (e) => {
       const target = e.target;
       const isTypingTarget =
@@ -821,19 +837,42 @@ export default function WatchPage() {
           e.preventDefault();
           togglePlay();
           break;
-        case "ArrowLeft":
+        case "ArrowLeft": {
           e.preventDefault();
-          seekBy(-10);
+          if (!e.repeat) {
+            clearTimeout(keyHoldTimerRef.current);
+            activeSpeedKeyRef.current = e.key;
+            seekBy(-5);
+            showGestureOsd({ type: 'skip', value: -5, x: 25 }, 650);
+            keyHoldTimerRef.current = setTimeout(() => {
+              if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
+              videoRef.current.playbackRate = 2;
+              showGestureOsd({ type: 'speed', value: 2, x: 25 }, null);
+            }, 260);
+          }
           break;
-        case "ArrowRight":
+        }
+        case "ArrowRight": {
           e.preventDefault();
-          seekBy(10);
+          if (!e.repeat) {
+            clearTimeout(keyHoldTimerRef.current);
+            activeSpeedKeyRef.current = e.key;
+            seekBy(5);
+            showGestureOsd({ type: 'skip', value: 5, x: 75 }, 650);
+            keyHoldTimerRef.current = setTimeout(() => {
+              if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
+              videoRef.current.playbackRate = 2;
+              showGestureOsd({ type: 'speed', value: 2, x: 75 }, null);
+            }, 260);
+          }
           break;
+        }
         case "ArrowUp": {
           e.preventDefault();
           const nextVolume = Math.min(1, Math.round((video.volume + 0.05) * 100) / 100);
           video.volume = nextVolume;
           video.muted = nextVolume === 0;
+          showGestureOsd({ type: 'volume', value: Math.round(nextVolume * 100), x: 75 }, 650);
           break;
         }
         case "ArrowDown": {
@@ -841,6 +880,7 @@ export default function WatchPage() {
           const nextVolume = Math.max(0, Math.round((video.volume - 0.05) * 100) / 100);
           video.volume = nextVolume;
           video.muted = nextVolume === 0;
+          showGestureOsd({ type: 'volume', value: Math.round(nextVolume * 100), x: 75 }, 650);
           break;
         }
         case "f":
@@ -851,12 +891,23 @@ export default function WatchPage() {
           e.preventDefault();
           video.muted = !video.muted;
           setMuted(video.muted);
+          showGestureOsd({ type: 'volume', value: video.muted ? 0 : Math.round(video.volume * 100), x: 75 }, 650);
           break;
       }
     };
+    const onKeyUp = (e) => endKeyboardSpeed(e.key);
+    const onBlur = () => endKeyboardSpeed(activeSpeedKeyRef.current);
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [seekBy, toggleFullscreen, togglePlay]);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      endKeyboardSpeed(activeSpeedKeyRef.current);
+    };
+  }, [seekBy, showGestureOsd, toggleFullscreen, togglePlay]);
 
   // Auto-lock landscape when entering fullscreen on mobile
   useEffect(() => {
@@ -929,7 +980,7 @@ export default function WatchPage() {
             onTouchEnd={handleTouchEnd}
           />
 
-          {/* OSD feedback for double-tap seek */}
+          {/* Player gesture and keyboard feedback */}
           {osd && (
             <div className={`player-osd player-osd-${osd.type}`} style={{ left: `${osd.x}%` }}>
               {osd.type === 'skip' && (
@@ -958,7 +1009,21 @@ export default function WatchPage() {
               )}
               {osd.type === 'volume' && (
                 <>
-                  <span>Âm lượng</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {osd.value === 0 ? (
+                      <>
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <line x1="22" y1="9" x2="16" y2="15" />
+                        <line x1="16" y1="9" x2="22" y2="15" />
+                      </>
+                    ) : (
+                      <>
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                        <path d="M19 5a10 10 0 0 1 0 14" />
+                      </>
+                    )}
+                  </svg>
                   <span className="player-osd-sub">{osd.value}%</span>
                 </>
               )}
@@ -970,7 +1035,12 @@ export default function WatchPage() {
               )}
               {osd.type === 'speed' && (
                 <>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 4 15 12 5 20 5 4" />
+                    <polygon points="13 4 23 12 13 20 13 4" />
+                  </svg>
                   <span>{osd.value}x</span>
+                  <span className="player-osd-sub">{osd.value > 1 ? 'Đang tua nhanh' : 'Tốc độ thường'}</span>
                 </>
               )}
             </div>
