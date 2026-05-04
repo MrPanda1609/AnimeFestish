@@ -147,6 +147,8 @@ export default function WatchPage() {
   const keyHoldTimerRef = useRef(null);
   const activeSpeedKeyRef = useRef(null);
   const lastArrowTapRef = useRef({ time: 0, key: null, total: 0 });
+  const reverseSpeedTimerRef = useRef(null);
+  const reverseSpeedWasPlayingRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -618,9 +620,49 @@ export default function WatchPage() {
     }
   }, []);
 
+  const stopReverseSpeed = useCallback(() => {
+    clearInterval(reverseSpeedTimerRef.current);
+    reverseSpeedTimerRef.current = null;
+
+    const video = videoRef.current;
+    if (video && reverseSpeedWasPlayingRef.current && video.paused) {
+      video.play().catch(() => {});
+    }
+  }, []);
+
+  const startForwardSpeed = useCallback(() => {
+    stopReverseSpeed();
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.playbackRate = 5;
+    showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+  }, [showGestureOsd, stopReverseSpeed]);
+
+  const startReverseSpeed = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    clearInterval(reverseSpeedTimerRef.current);
+    reverseSpeedWasPlayingRef.current = !video.paused;
+    video.playbackRate = 1;
+    video.pause();
+
+    const tickMs = 80;
+    reverseSpeedTimerRef.current = setInterval(() => {
+      const currentVideo = videoRef.current;
+      if (!currentVideo) return;
+
+      currentVideo.currentTime = Math.max(0, currentVideo.currentTime - (5 * tickMs) / 1000);
+      renderPlayerClock(currentVideo.currentTime, currentVideo.duration || 0);
+    }, tickMs);
+
+    showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+  }, [renderPlayerClock, showGestureOsd]);
+
   // --- Cốc Cốc-like Mobile Touch Gestures ---
   // Tap: toggle UI only. Double tap: left -5s, right +5s. Horizontal drag: preview seek, commit on release.
-  // Vertical drag: left brightness overlay, right volume. Long press: temporary 2x speed.
+  // Vertical drag: left brightness overlay, right volume. Long press: temporary 5x speed.
   const handleTouchStart = useCallback((e) => {
     if (e.target.closest('.player-bottom-controls') ||
         e.target.closest('button') ||
@@ -655,11 +697,14 @@ export default function WatchPage() {
       if (!g || !v || g.mode) return;
       g.mode = 'speed';
       g.longPressActive = true;
-      v.playbackRate = 5;
       setControlsVisible(true);
-      showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+      if (g.side === 'left') {
+        startReverseSpeed();
+      } else {
+        startForwardSpeed();
+      }
     }, 450);
-  }, [showGestureOsd]);
+  }, [startForwardSpeed, startReverseSpeed]);
 
   const handleTouchMove = useCallback((e) => {
     const g = gestureRef.current;
@@ -722,6 +767,7 @@ export default function WatchPage() {
 
     if (g.mode === 'speed') {
       if (video) video.playbackRate = 1;
+      stopReverseSpeed();
       showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
       gestureRef.current = null;
       clickSuppressUntilRef.current = Date.now() + 900;
@@ -782,13 +828,14 @@ export default function WatchPage() {
     clearTimeout(longPressTimerRef.current);
 
     if (videoRef.current) videoRef.current.playbackRate = 1;
+    stopReverseSpeed();
     if (g?.mode === 'speed') {
       showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
     }
 
     gestureRef.current = null;
     clickSuppressUntilRef.current = Date.now() + 900;
-  }, [showGestureOsd]);
+  }, [showGestureOsd, stopReverseSpeed]);
 
   // ...
 
@@ -830,11 +877,12 @@ export default function WatchPage() {
       keyHoldTimerRef.current = null;
 
       const video = videoRef.current;
-      const wasSpeeding = video && video.playbackRate !== 1;
+      const wasSpeeding = video && (video.playbackRate !== 1 || reverseSpeedTimerRef.current);
       activeSpeedKeyRef.current = null;
 
       if (wasSpeeding) {
         video.playbackRate = 1;
+        stopReverseSpeed();
         showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
       } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
         const now = Date.now();
@@ -874,13 +922,11 @@ export default function WatchPage() {
             activeSpeedKeyRef.current = e.key;
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
-              videoRef.current.playbackRate = 5;
-              showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+              startReverseSpeed();
             }, 260);
-          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 5) {
+          } else if (activeSpeedKeyRef.current === e.key && !reverseSpeedTimerRef.current) {
             clearTimeout(keyHoldTimerRef.current);
-            video.playbackRate = 5;
-            showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+            startReverseSpeed();
           }
           break;
         }
@@ -891,13 +937,11 @@ export default function WatchPage() {
             activeSpeedKeyRef.current = e.key;
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
-              videoRef.current.playbackRate = 5;
-              showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+              startForwardSpeed();
             }, 260);
           } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 5) {
             clearTimeout(keyHoldTimerRef.current);
-            video.playbackRate = 5;
-            showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
+            startForwardSpeed();
           }
           break;
         }
@@ -941,7 +985,7 @@ export default function WatchPage() {
       window.removeEventListener("blur", onBlur);
       endKeyboardSpeed(activeSpeedKeyRef.current);
     };
-  }, [seekBy, showGestureOsd, toggleFullscreen, togglePlay]);
+  }, [seekBy, showGestureOsd, startForwardSpeed, startReverseSpeed, stopReverseSpeed, toggleFullscreen, togglePlay]);
 
   // Auto-lock landscape when entering fullscreen on mobile
   useEffect(() => {
