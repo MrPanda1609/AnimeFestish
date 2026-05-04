@@ -146,6 +146,7 @@ export default function WatchPage() {
   const showIntroSkipRef = useRef(false);
   const keyHoldTimerRef = useRef(null);
   const activeSpeedKeyRef = useRef(null);
+  const lastArrowTapRef = useRef({ time: 0, key: null, total: 0 });
 
   const [movie, setMovie] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -654,9 +655,9 @@ export default function WatchPage() {
       if (!g || !v || g.mode) return;
       g.mode = 'speed';
       g.longPressActive = true;
-      v.playbackRate = 2;
+      v.playbackRate = 5;
       setControlsVisible(true);
-      showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
+      showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
     }, 450);
   }, [showGestureOsd]);
 
@@ -836,9 +837,15 @@ export default function WatchPage() {
         video.playbackRate = 1;
         showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
       } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        const now = Date.now();
+        const last = lastArrowTapRef.current;
         const delta = key === 'ArrowLeft' ? -5 : 5;
+        const total = last.key === key && now - last.time < 650
+          ? (last.total || 0) + delta
+          : delta;
+        lastArrowTapRef.current = { time: now, key, total };
         seekBy(delta);
-        showGestureOsd({ type: 'skip', value: delta, x: key === 'ArrowLeft' ? 25 : 75 }, 650);
+        showGestureOsd({ type: 'skip', value: total, x: key === 'ArrowLeft' ? 25 : 75 }, 650);
       }
     };
 
