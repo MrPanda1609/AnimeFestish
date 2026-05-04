@@ -827,12 +827,18 @@ export default function WatchPage() {
       if (key !== activeSpeedKeyRef.current) return;
       clearTimeout(keyHoldTimerRef.current);
       keyHoldTimerRef.current = null;
-      activeSpeedKeyRef.current = null;
 
       const video = videoRef.current;
-      if (video && video.playbackRate !== 1) {
+      const wasSpeeding = video && video.playbackRate !== 1;
+      activeSpeedKeyRef.current = null;
+
+      if (wasSpeeding) {
         video.playbackRate = 1;
         showGestureOsd({ type: 'speed', value: 1, x: 86 }, 350);
+      } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        const delta = key === 'ArrowLeft' ? -5 : 5;
+        seekBy(delta);
+        showGestureOsd({ type: 'skip', value: delta, x: key === 'ArrowLeft' ? 25 : 75 }, 650);
       }
     };
 
@@ -859,17 +865,15 @@ export default function WatchPage() {
           if (!e.repeat) {
             clearTimeout(keyHoldTimerRef.current);
             activeSpeedKeyRef.current = e.key;
-            seekBy(-5);
-            showGestureOsd({ type: 'skip', value: -5, x: 25 }, 650);
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
-              videoRef.current.playbackRate = 2;
-              showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
+              videoRef.current.playbackRate = 5;
+              showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
             }, 260);
-          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
+          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 5) {
             clearTimeout(keyHoldTimerRef.current);
-            video.playbackRate = 2;
-            showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
+            video.playbackRate = 5;
+            showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
           }
           break;
         }
@@ -878,17 +882,15 @@ export default function WatchPage() {
           if (!e.repeat) {
             clearTimeout(keyHoldTimerRef.current);
             activeSpeedKeyRef.current = e.key;
-            seekBy(5);
-            showGestureOsd({ type: 'skip', value: 5, x: 75 }, 650);
             keyHoldTimerRef.current = setTimeout(() => {
               if (activeSpeedKeyRef.current !== e.key || !videoRef.current) return;
-              videoRef.current.playbackRate = 2;
-              showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
+              videoRef.current.playbackRate = 5;
+              showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
             }, 260);
-          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 2) {
+          } else if (activeSpeedKeyRef.current === e.key && video.playbackRate !== 5) {
             clearTimeout(keyHoldTimerRef.current);
-            video.playbackRate = 2;
-            showGestureOsd({ type: 'speed', value: 2, x: 86 }, null);
+            video.playbackRate = 5;
+            showGestureOsd({ type: 'speed', value: 5, x: 86 }, null);
           }
           break;
         }
